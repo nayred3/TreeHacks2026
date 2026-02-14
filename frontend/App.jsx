@@ -3,6 +3,7 @@ import { WW, WH, AGENT_COLORS, TARGET_COLOR, REASSIGN_THRESHOLD, STALE_TTL } fro
 import { euclidean, randomWalk } from "./utils.js";
 import { runPriorityAssignment } from "./assignment.js";
 import { drawScene } from "./canvas.js";
+import { extractWallGrid } from "./pathfinding.js";
 
 export default function App() {
   const canvasRef = useRef(null);
@@ -22,6 +23,9 @@ export default function App() {
   const [tick, setTick]       = useState(0);
   const [rCount, setRC]       = useState(0);
   const [tab, setTab]         = useState("priority");
+  const [schematicImg, setSchematicImg] = useState(null);
+  const [wallGrid, setWallGrid]         = useState(null);
+  const fileInputRef = useRef(null);
 
   const addEvent = useCallback((msg, type = "info") =>
     setEvents(prev => [{ msg, type, ts: Date.now() }, ...prev.slice(0, 59)]), []);
@@ -31,15 +35,15 @@ export default function App() {
     const now = Date.now();
     stateRef.current = {
       agents: [
-        { id: "Alice",   position: { x: 80,  y: 80  }, vel: { vx:  1.1, vy:  0.6 } },
-        { id: "Bob",     position: { x: 520, y: 70  }, vel: { vx: -0.9, vy:  1.0 } },
-        { id: "Charlie", position: { x: 320, y: 310 }, vel: { vx:  0.4, vy: -1.1 } },
-        { id: "Diana",   position: { x: 100, y: 300 }, vel: { vx:  1.0, vy: -0.5 } },
+        { id: "Alice",   position: { x: 100, y: 100 }, vel: { vx:  0.3, vy:  0.2 } },
+        { id: "Bob",     position: { x: 700, y: 90  }, vel: { vx: -0.25, vy:  0.3 } },
+        { id: "Charlie", position: { x: 420, y: 400 }, vel: { vx:  0.15, vy: -0.35 } },
+        { id: "Diana",   position: { x: 130, y: 390 }, vel: { vx:  0.3, vy: -0.15 } },
       ],
       targets: [
-        { id: 1, position: { x: 190, y: 140 }, vel: { vx:  1.4, vy:  0.7  }, confidence: 0.93, lastSeen: now },
-        { id: 2, position: { x: 430, y: 210 }, vel: { vx: -1.1, vy:  0.9  }, confidence: 0.81, lastSeen: now },
-        { id: 3, position: { x: 300, y: 170 }, vel: { vx:  0.7, vy: -1.4  }, confidence: 0.67, lastSeen: now },
+        { id: 1, position: { x: 250, y: 180 }, vel: { vx:  0.4, vy:  0.2  }, confidence: 0.93, lastSeen: now },
+        { id: 2, position: { x: 580, y: 270 }, vel: { vx: -0.3, vy:  0.25 }, confidence: 0.81, lastSeen: now },
+        { id: 3, position: { x: 400, y: 210 }, vel: { vx:  0.2, vy: -0.4  }, confidence: 0.67, lastSeen: now },
       ],
       prevPrimary: {}, prevSecondary: {}, nextId: 4,
     };
@@ -56,10 +60,10 @@ export default function App() {
       lastT = now; tickN++;
       const s = stateRef.current;
       if (!frozen) {
-        s.agents = s.agents.map(a => { const r = randomWalk(a.position, a.vel, 1.6); return { ...a, position: r.pos, vel: r.vel }; });
+        s.agents = s.agents.map(a => { const r = randomWalk(a.position, a.vel, 0.5); return { ...a, position: r.pos, vel: r.vel }; });
       }
-      s.targets = s.targets.map(t => { const r = randomWalk(t.position, t.vel, 2.0); return { ...t, position: r.pos, vel: r.vel, lastSeen: Date.now() }; });
-      const res = runPriorityAssignment(s.agents, s.targets, s.prevPrimary, s.prevSecondary);
+      s.targets = s.targets.map(t => { const r = randomWalk(t.position, t.vel, 0.6); return { ...t, position: r.pos, vel: r.vel, lastSeen: Date.now() }; });
+      const res = runPriorityAssignment(s.agents, s.targets, s.prevPrimary, s.prevSecondary, wallGrid);
       for (const [tid, aid] of Object.entries(res.primary)) {
         if (s.prevPrimary[tid] && s.prevPrimary[tid] !== aid) {
           addEvent(`↩ P1 T${tid}: ${s.prevPrimary[tid]} → ${aid}`, "reassign");
@@ -68,13 +72,13 @@ export default function App() {
       }
       s.prevPrimary = { ...res.primary }; s.prevSecondary = { ...res.secondary };
       const canvas = canvasRef.current;
-      if (canvas) drawScene(canvas, s.agents, s.targets, res, hl, Date.now(), showZones);
+      if (canvas) drawScene(canvas, s.agents, s.targets, res, hl, Date.now(), showZones, schematicImg);
       setTick(tickN); setResult(res);
       setUi({ agents: [...s.agents], targets: [...s.targets] });
     }
     animRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animRef.current);
-  }, [paused, frozen, hl, showZones, addEvent]);
+  }, [paused, frozen, hl, showZones, addEvent, wallGrid, schematicImg]);
 
   const onCanvasClick = e => {
     if (!stateRef.current || !canvasRef.current) return;
@@ -92,7 +96,7 @@ export default function App() {
   const spawn = () => {
     const s = stateRef.current; if (!s) return;
     const id = s.nextId++;
-    s.targets.push({ id, position: { x: 50 + Math.random() * 520, y: 30 + Math.random() * 340 },
+    s.targets.push({ id, position: { x: 50 + Math.random() * 720, y: 30 + Math.random() * 460 },
       vel: { vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 },
       confidence: 0.5 + Math.random() * 0.5, lastSeen: Date.now() });
     addEvent(`🔴 T${id} detected — priorities recomputing…`, "spawn");
@@ -105,10 +109,29 @@ export default function App() {
   };
   const scatter = () => {
     const s = stateRef.current; if (!s) return;
-    s.agents  = s.agents.map(a  => ({ ...a,  position: { x: 30 + Math.random() * 560, y: 30 + Math.random() * 340 } }));
-    s.targets = s.targets.map(t => ({ ...t,  position: { x: 30 + Math.random() * 560, y: 30 + Math.random() * 340 }, lastSeen: Date.now() }));
+    s.agents  = s.agents.map(a  => ({ ...a,  position: { x: 30 + Math.random() * 760, y: 30 + Math.random() * 460 } }));
+    s.targets = s.targets.map(t => ({ ...t,  position: { x: 30 + Math.random() * 760, y: 30 + Math.random() * 460 }, lastSeen: Date.now() }));
     s.prevPrimary = {}; s.prevSecondary = {};
     addEvent("⚡ Scattered — full priority recalculation!", "reassign");
+  };
+
+  const handleSchematicUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      setSchematicImg(img);
+      setWallGrid(extractWallGrid(img, WW, WH));
+      addEvent("🏗 Schematic loaded — wall-aware pathfinding active", "system");
+    };
+    img.src = URL.createObjectURL(file);
+    e.target.value = "";
+  };
+  const clearSchematic = () => {
+    setSchematicImg(null);
+    setWallGrid(null);
+    if (stateRef.current) { stateRef.current.prevPrimary = {}; stateRef.current.prevSecondary = {}; }
+    addEvent("🏗 Schematic cleared — euclidean distances restored", "system");
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -180,7 +203,7 @@ export default function App() {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
         <div>
           <div style={{ fontSize:15, fontWeight:700, letterSpacing:"0.15em", color:C.teal }}>◈ PRIORITY ASSIGNMENT ENGINE</div>
-          <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em", marginTop:2 }}>DISTANCE-BASED PRIORITY · P1 SOLID · P2 DASHED · PROXIMITY DOTTED · V2 ANTI-THRASH</div>
+          <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em", marginTop:2 }}>DISTANCE-BASED PRIORITY · P1 SOLID · P2 DASHED · PROXIMITY ON HOVER · V2 ANTI-THRASH</div>
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
           {[
@@ -198,6 +221,9 @@ export default function App() {
           <button onClick={spawn} style={{ background:"#180e0e", border:`1px solid #4a1010`, color:"#ff6b6b", padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊕ SPAWN</button>
           <button onClick={neutralise} style={{ background:"#0a160e", border:`1px solid #1a4020`, color:C.green, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊘ NEUTRALISE</button>
           <button onClick={scatter} style={{ background:"#12100a", border:`1px solid #3a3010`, color:C.yellow, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⚡ SCATTER</button>
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleSchematicUpload} style={{ display:"none" }}/>
+          <button onClick={() => fileInputRef.current?.click()} style={{ background:"#0e1218", border:`1px solid ${C.teal}60`, color:C.teal, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>🏗 SCHEMATIC</button>
+          {schematicImg && <button onClick={clearSchematic} style={{ background:"#180e0e", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
           <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:4, padding:"6px 10px", fontSize:9, color:C.dim, display:"flex", alignItems:"center", gap:6 }}>
             <span style={{ color:paused?C.orange:C.green, animation:paused?"none":"pulse 1.5s infinite" }}>●</span>
             {String(tick).padStart(4,"0")} <span style={{ color:C.dim }}>|</span> <span style={{ color:rCount?C.yellow:C.dim }}>↩{rCount}</span>
@@ -209,9 +235,9 @@ export default function App() {
       <div style={{ display:"flex", gap:14, marginBottom:10, padding:"7px 12px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em" }}>LINE KEY:</span>
         {[
-          { stroke:"#aaa", dash:"", w:2.5,  label:"P1 Primary — solid · closest agent wins" },
-          { stroke:"#aaa", dash:"5,4", w:1.5, label:"P2 Secondary — dashed · next-best agent" },
-          { stroke:"#aaa", dash:"2,8", w:1.0, label:"Proximity only — always drawn · not assigned" },
+          { stroke:"#aaa", dash:"", w:2.5,  label:"P1 Primary Target" },
+          { stroke:"#aaa", dash:"5,4", w:1.5, label:"P2 Secondary Target" },
+          { stroke:"#aaa", dash:"2,8", w:1.0, label:"Proximity - shown on hover" },
         ].map(({ stroke, dash, w, label }) => (
           <div key={label} style={{ display:"flex", alignItems:"center", gap:6 }}>
             <svg width="30" height="8" style={{ flexShrink:0 }}>
@@ -234,8 +260,8 @@ export default function App() {
 
         {/* Canvas column */}
         <div>
-          <canvas ref={canvasRef} width={WW} height={WH} onClick={onCanvasClick}
-            style={{ display:"block", border:`1px solid ${C.border}`, borderRadius:6, cursor:"crosshair" }}/>
+          <canvas ref={canvasRef} onClick={onCanvasClick}
+            style={{ display:"block", width:WW, height:WH, border:`1px solid ${C.border}`, borderRadius:6, cursor:"crosshair" }}/>
           <div style={{ display:"flex", gap:10, marginTop:8, padding:"7px 10px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, flexWrap:"wrap" }}>
             <span style={{ fontSize:9, color:C.dim }}>CLICK TO HIGHLIGHT:</span>
             {agents.map(a => (
@@ -283,8 +309,8 @@ export default function App() {
             {tab === "priority" && (
               <div>
                 <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em", marginBottom:10 }}>
-                  Each agent's targets ranked by distance. P1 = closest (solid line). P2 = second-closest (dashed).
-                  Role shown: ✓ P1 assigned · ~ P2 secondary · — not assigned.
+                  Each agent's targets ranked by distance. P1 = closest target (solid + glow). P2 = second-closest target (dashed).
+                  Agents hold both P1 and P2 simultaneously. Anti-thrash: P1 only reassigns if &gt;2.5 m closer.
                 </div>
                 {agents.map(agent => {
                   const color  = AGENT_COLORS[agent.id] || "#888";
@@ -306,31 +332,37 @@ export default function App() {
                         </span>
                       </div>
                       {prList.length === 0 ? <div style={{ fontSize:9, color:C.dim }}>No targets</div>
-                        : prList.map(({ targetId, distance, priority, role }) => (
+                        : prList.map(({ targetId, distance, role }) => {
+                          const isAssigned = role === "primary" || role === "secondary";
+                          return (
                           <div key={targetId} style={{
                             display:"flex", alignItems:"center", gap:6, padding:"3px 0",
-                            borderBottom:`1px solid ${C.border}`, opacity:priority > 4 ? 0.4 : 1,
+                            borderBottom:`1px solid ${C.border}`,
+                            opacity: isAssigned ? 1 : 0.35,
                           }}>
-                            <span style={{ minWidth:18, fontSize:9, fontWeight:700,
-                              color:priority===1?C.green:priority===2?C.yellow:C.dim }}>P{priority}</span>
-                            <span style={{ background:TARGET_COLOR, color:"#000", fontSize:8, fontWeight:700, padding:"1px 5px", borderRadius:2 }}>T{targetId}</span>
+                            <span style={{ background: isAssigned ? TARGET_COLOR : "#444", color: isAssigned ? "#000" : "#999", fontSize:8, fontWeight:700, padding:"1px 5px", borderRadius:2 }}>T{targetId}</span>
                             <div style={{ flex:1, height:4, background:"#0a1018", borderRadius:2, overflow:"hidden" }}>
                               <div style={{
                                 height:"100%", borderRadius:2, transition:"width 0.15s",
                                 width:`${Math.max(4, Math.min(100, 100 - distance * 0.16))}%`,
-                                background: role==="primary"?C.green:role==="secondary"?C.yellow:C.dim+"80",
+                                background: role==="primary"?C.green:role==="secondary"?C.yellow:C.dim+"40",
                               }}/>
                             </div>
                             <span style={{ fontSize:9, color:C.dim, minWidth:36, textAlign:"right" }}>{distance.toFixed(0)}m</span>
-                            <span style={{ minWidth:30, fontSize:8, fontWeight:700, textAlign:"center",
-                              color:role==="primary"?C.green:role==="secondary"?C.yellow:C.dim,
-                              border:`1px solid ${role==="primary"?C.green+"40":role==="secondary"?C.yellow+"40":"transparent"}`,
-                              borderRadius:3, padding:"1px 4px",
-                            }}>
-                              {role==="primary"?"✓ P1":role==="secondary"?"~ P2":"—"}
-                            </span>
+                            {isAssigned ? (
+                              <span style={{ minWidth:30, fontSize:8, fontWeight:700, textAlign:"center",
+                                color:role==="primary"?C.green:C.yellow,
+                                border:`1px solid ${role==="primary"?C.green+"40":C.yellow+"40"}`,
+                                borderRadius:3, padding:"1px 4px",
+                              }}>
+                                {role==="primary"?"P1":"P2"}
+                              </span>
+                            ) : (
+                              <span style={{ minWidth:30, fontSize:8, textAlign:"center", color:C.dim }}>—</span>
+                            )}
                           </div>
-                        ))
+                          );
+                        })
                       }
                     </div>
                   );
@@ -392,7 +424,7 @@ export default function App() {
                 </table>
                 <div style={{ marginTop:8, fontSize:9, color:C.dim, lineHeight:1.7 }}>
                   Anti-thrash: P1 only reassigns if improvement &gt; <span style={{ color:C.yellow }}>{REASSIGN_THRESHOLD}m</span>.
-                  Proximity line drawn even when closest agent is busy with another primary.
+                  P2 = each agent's second-closest target. Proximity lines shown on hover only.
                 </div>
               </div>
             )}
@@ -435,10 +467,8 @@ export default function App() {
               const color  = AGENT_COLORS[agent.id] || "#888";
               const isHl   = hl === agent.id;
               const prList = result.agentPriorities[agent.id] || [];
-              const p1     = prList[0];
-              const p2     = prList[1];
-              const myPrimRole = prList.find(e => e.role === "primary");
-              const mySecRole  = prList.find(e => e.role === "secondary");
+              const primEntry = prList.find(e => e.role === "primary");
+              const secEntry  = prList.find(e => e.role === "secondary");
               return (
                 <div key={agent.id} onClick={() => setHL(h => h === agent.id ? null : agent.id)}
                   style={{ background:isHl?"#0e1825":C.panel, border:`1px solid ${isHl?color:C.border}`,
@@ -449,23 +479,26 @@ export default function App() {
                     <span style={{ color, fontWeight:700, fontSize:11 }}>{agent.id}</span>
                     <span style={{ marginLeft:"auto", fontSize:8, color:C.dim }}>{agent.position.x.toFixed(0)},{agent.position.y.toFixed(0)}</span>
                   </div>
-                  {[
-                    { rank:"P1", entry:p1, role:myPrimRole, roleCol:C.green, roleLabel:"ASSIGNED", notLabel:"lost conflict" },
-                    { rank:"P2", entry:p2, role:mySecRole,  roleCol:C.yellow, roleLabel:"SECONDARY", notLabel:"—" },
-                  ].map(({ rank, entry, role, roleCol, roleLabel, notLabel }) => (
-                    <div key={rank} style={{ display:"flex", alignItems:"center", gap:4, marginBottom:2 }}>
-                      <span style={{ fontSize:8, color:rank==="P1"?C.green:C.yellow, fontWeight:700, minWidth:16 }}>{rank}</span>
-                      {entry ? (
-                        <>
-                          <span style={{ background:TARGET_COLOR, color:"#000", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:2 }}>T{entry.targetId}</span>
-                          <span style={{ fontSize:8, color:C.dim }}>{entry.distance.toFixed(0)}m</span>
-                          <span style={{ marginLeft:"auto", fontSize:8, color:role?.targetId===entry.targetId?roleCol:C.dim }}>
-                            {role?.targetId === entry.targetId ? roleLabel : notLabel}
-                          </span>
-                        </>
-                      ) : <span style={{ fontSize:8, color:C.dim }}>—</span>}
-                    </div>
-                  ))}
+                  <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:2 }}>
+                    <span style={{ fontSize:8, color:C.green, fontWeight:700, minWidth:16 }}>P1</span>
+                    {primEntry ? (
+                      <>
+                        <span style={{ background:TARGET_COLOR, color:"#000", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:2 }}>T{primEntry.targetId}</span>
+                        <span style={{ fontSize:8, color:C.dim }}>{primEntry.distance.toFixed(0)}m</span>
+                        <span style={{ marginLeft:"auto", fontSize:8, color:C.green }}>ASSIGNED</span>
+                      </>
+                    ) : <span style={{ fontSize:8, color:C.dim }}>—</span>}
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:2 }}>
+                    <span style={{ fontSize:8, color:C.yellow, fontWeight:700, minWidth:16 }}>P2</span>
+                    {secEntry ? (
+                      <>
+                        <span style={{ background:TARGET_COLOR, color:"#000", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:2 }}>T{secEntry.targetId}</span>
+                        <span style={{ fontSize:8, color:C.dim }}>{secEntry.distance.toFixed(0)}m</span>
+                        <span style={{ marginLeft:"auto", fontSize:8, color:C.yellow }}>SECONDARY</span>
+                      </>
+                    ) : <span style={{ fontSize:8, color:C.dim }}>—</span>}
+                  </div>
                 </div>
               );
             })}

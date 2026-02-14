@@ -3,8 +3,8 @@
  * Mirrors assignment_engine.py
  */
 
-export const WW = 620;
-export const WH = 400;
+export const WW = 820;
+export const WH = 520;
 
 export const AGENT_COLORS = {
   Alice: "#00f5d4",
