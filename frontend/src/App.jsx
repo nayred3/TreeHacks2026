@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import DemoControlPanel from "./components/DemoControlPanel";
 import MapCanvasHUD from "./components/MapCanvasHUD";
 import PriorityPanel from "./components/PriorityPanel";
@@ -20,7 +21,27 @@ export default function App() {
     neutralise,
     scatter,
     toggleZones,
+    fadeStartMs,
+    fadeEndMs,
+    selectedEntity,
+    selectEntity,
+    mapOffset,
+    zonesEnabled,
+    focusEntity,
+    clearSelection,
+    occludeSelectedTarget,
+    clearMapOffset,
+    staleBadgeMs,
+    missionSpeed,
   } = store;
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") clearSelection();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [clearSelection]);
 
   return (
     <div className="app-hud">
@@ -61,12 +82,27 @@ export default function App() {
               isRunning={isRunning}
               resetNonce={resetNonce}
               onCreatePin={addPin}
+              onSelectEntity={selectEntity}
+              selectedEntity={selectedEntity}
+              mapOffset={mapOffset}
+              zonesEnabled={zonesEnabled}
+              fadeStartMs={fadeStartMs}
+              fadeEndMs={fadeEndMs}
+              staleBadgeMs={staleBadgeMs}
+              missionSpeed={missionSpeed}
             />
           </div>
         </div>
 
         <div className="right-column">
-          <PriorityPanel agents={agents} targets={targets} assignments={assignments} />
+          <PriorityPanel
+            agents={agents}
+            targets={targets}
+            assignments={assignments}
+            selectedEntity={selectedEntity}
+            onFocus={focusEntity}
+            onOccludeTarget={occludeSelectedTarget}
+          />
           <DemoControlPanel store={store} backendStatus={store.connectStatus} />
         </div>
       </div>

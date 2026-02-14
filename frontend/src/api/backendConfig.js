@@ -20,7 +20,16 @@ export const TOPICS = {
   tracks: "tracks",
   assignments: "assignments",
   observations: "observations",
+  // Placeholder for fused world state feed
+  world_state: "world_state",
 };
+
+// TODO(BACKEND-CONTRACT): REPLACE_ME — incoming message type for fused world state
+export const WORLD_STATE_UPDATE = "world_state_update";
+
+// TODO(BACKEND-CONTRACT): REPLACE_ME — outgoing event keys
+export const UI_ACTION = "ui_action";
+export const DEBUG_ACTION = "debug_action";
 
 // TODO(BACKEND-CONTRACT): REPLACE_ME — event names for send()
 export const EVENTS = {
@@ -32,4 +41,7 @@ export const EVENTS = {
   neutralise_target: "neutralise_target",
   scatter_targets: "scatter_targets",
   zones_toggle: "zones_toggle",
+  // TODO(BACKEND-CONTRACT): placeholder for future real task/rescue events
+  task_assign: "task_assign",
+  task_complete: "task_complete",
 };

@@ -1,5 +1,22 @@
+import * as backendClient from "../api/backendClient.js";
+
 export default function DemoControlPanel({ store, backendStatus = "offline" }) {
-    const { isRunning, debug, startDemo, resetDemo, toggle } = store;
+    const {
+      isRunning,
+      debug,
+      startDemo,
+      resetDemo,
+      toggle,
+      mockTargetsMove,
+      toggleMockTargetsMove,
+      missionAutoRun,
+      toggleMissionAutoRun,
+      stepMissionOnce,
+      missionSpeed,
+      setMissionSpeed,
+      resetMission,
+    } = store;
+    const isMock = backendStatus === "mock";
   
     return (
       <div style={panel}>
@@ -40,7 +57,56 @@ export default function DemoControlPanel({ store, backendStatus = "offline" }) {
             checked={debug.showDetections}
             onClick={() => toggle("showDetections")}
           />
+          <ToggleRow
+            label="Show trails"
+            checked={debug.showTrails}
+            onClick={() => toggle("showTrails")}
+          />
+          <ToggleRow
+            label="Show last-seen timers"
+            checked={debug.showLastSeenTimers}
+            onClick={() => toggle("showLastSeenTimers")}
+          />
         </div>
+
+        {isMock && (
+          <div style={section}>
+            <div style={sectionTitle}>Mock controls</div>
+            <button style={secondaryBtn} onClick={() => backendClient.occludeRandomTarget(5)}>
+              Occlude random target (5s)
+            </button>
+            <ToggleRow
+              label="Move targets"
+              checked={mockTargetsMove ?? false}
+              onClick={toggleMockTargetsMove}
+            />
+          </div>
+        )}
+
+        {isMock && (
+          <div style={section}>
+            <div style={sectionTitle}>Rescue mission</div>
+            <ToggleRow
+              label="Run mission (auto)"
+              checked={missionAutoRun ?? false}
+              onClick={toggleMissionAutoRun}
+            />
+            <button style={secondaryBtn} onClick={stepMissionOnce}>
+              Step once
+            </button>
+            <div style={row}>
+              <span>Speed</span>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button style={smallBtn} onClick={() => setMissionSpeed((missionSpeed ?? 12) - 4)}>-</button>
+                <span style={{ minWidth: 28, fontVariantNumeric: "tabular-nums" }}>{missionSpeed ?? 12}</span>
+                <button style={smallBtn} onClick={() => setMissionSpeed((missionSpeed ?? 12) + 4)}>+</button>
+              </div>
+            </div>
+            <button style={secondaryBtn} onClick={resetMission}>
+              Reset mission
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -88,6 +154,14 @@ export default function DemoControlPanel({ store, backendStatus = "offline" }) {
     cursor: "pointer",
   };
   
+  const smallBtn = {
+    padding: "4px 10px",
+    borderRadius: 6,
+    border: "1px solid rgba(255,255,255,0.2)",
+    cursor: "pointer",
+    fontWeight: 800,
+  };
+
   const secondaryBtn = {
     padding: "10px 12px",
     borderRadius: 10,

@@ -23,7 +23,15 @@ function safeAgent(msg) {
     console.warn("[backendClient] unexpected agent shape", msg);
     return null;
   }
-  return { id: String(id), x: Number(x), y: Number(y), label: msg.label ?? `A${id}` };
+  // TODO(BACKEND-CONTRACT): confirm timestamp field name + units (ms vs s)
+  const ts = msg.ts ?? msg.timestamp ?? msg.last_seen ?? msg.lastSeenAt;
+  const timestamp = ts != null && (typeof ts === "number" || !isNaN(Number(ts)))
+    ? (ts > 1e12 ? Number(ts) : Number(ts) * 1000) // assume s if < ~year 2001 in ms
+    : undefined;
+  // TODO(BACKEND-CONTRACT): mode/currentTargetId field names for live mode
+  const mode = msg.mode ?? msg.state ?? "idle";
+  const currentTargetId = msg.currentTargetId ?? msg.current_target_id ?? msg.targetId ?? null;
+  return { id: String(id), x: Number(x), y: Number(y), label: msg.label ?? `A${id}`, timestamp, mode, currentTargetId };
 }
 
 // TODO(BACKEND-CONTRACT): REPLACE_ME
@@ -36,7 +44,18 @@ function safeTarget(msg) {
     console.warn("[backendClient] unexpected target shape", msg);
     return null;
   }
-  return { id: String(id), x: Number(x), y: Number(y), label: msg.label ?? `T${id}` };
+  // TODO(BACKEND-CONTRACT): confirm timestamp field name + units (ms vs s)
+  const ts = msg.ts ?? msg.timestamp ?? msg.last_seen ?? msg.lastSeenAt;
+  const timestamp = ts != null && (typeof ts === "number" || !isNaN(Number(ts)))
+    ? (ts > 1e12 ? Number(ts) : Number(ts) * 1000)
+    : undefined;
+  // TODO(BACKEND-CONTRACT): confirm type/confidence field names
+  const type = msg.type ?? msg.targetType ?? msg.class ?? "target";
+  const confidence = typeof msg.confidence === "number" ? msg.confidence : undefined;
+  // TODO(BACKEND-CONTRACT): status/assignedAgentId field names for live mode
+  const status = msg.status ?? msg.task_status ?? "unassigned";
+  const assignedAgentId = msg.assignedAgentId ?? msg.assigned_agent_id ?? null;
+  return { id: String(id), x: Number(x), y: Number(y), label: msg.label ?? `T${id}`, timestamp, type, confidence, status, assignedAgentId };
 }
 
 // TODO(BACKEND-CONTRACT): REPLACE_ME
@@ -65,12 +84,25 @@ function emit(topicKey, data) {
 // —— MOCK: generate agents, targets, assignments at <=10Hz ——
 let mockTickId = null;
 let mockDemoRunning = false;
+let mockTargetsMove = false;
 const MOCK_BOUNDS = { w: 800, h: 520 };
 const AGENT_COLORS = ["#00ffff", "#ff00ff", "#ffff00", "#bf5fff"];
 let mockAgents = [];
 let mockTargets = [];
 let mockAssignments = [];
 let mockTime = 0;
+
+// Mission / rescue loop (mock only)
+const ARRIVAL_RADIUS = 16;
+let missionAutoRun = false;
+let missionSpeed = 12;
+const MISSION_SPEED_MIN = 4;
+const MISSION_SPEED_MAX = 40;
+
+// Vision model (mock only)
+let VISION_RADIUS = 180;
+const occludedTargets = new Map(); // id -> expiryMs
+const targetLastSeenAtMs = new Map(); // id -> ms
 
 export function setDemoRunning(running) {
   mockDemoRunning = Boolean(running);
@@ -96,17 +128,163 @@ export function setFrozen(frozen) {
 
 function initMockState() {
   mockAgents = [
-    { id: "a1", x: 120, y: 200, label: "A1", hue: 0 },
-    { id: "a2", x: 400, y: 260, label: "A2", hue: 1 },
-    { id: "a3", x: 680, y: 180, label: "A3", hue: 2 },
+    { id: "a1", x: 120, y: 200, label: "A1", hue: 0, mode: "idle", currentTargetId: null },
+    { id: "a2", x: 400, y: 260, label: "A2", hue: 1, mode: "idle", currentTargetId: null },
+    { id: "a3", x: 680, y: 180, label: "A3", hue: 2, mode: "idle", currentTargetId: null },
   ];
   mockTargets = [
-    { id: "t1", x: 300, y: 150, label: "T1" },
-    { id: "t2", x: 500, y: 380, label: "T2" },
-    { id: "t3", x: 200, y: 400, label: "T3" },
+    { id: "t1", x: 300, y: 150, label: "T1", type: "victim", status: "unassigned", assignedAgentId: null },
+    { id: "t2", x: 500, y: 380, label: "T2", type: "hazard", status: "unassigned", assignedAgentId: null },
+    { id: "t3", x: 200, y: 400, label: "T3", type: "target", status: "unassigned", assignedAgentId: null },
   ];
   mockAssignments = [];
   mockTime = 0;
+}
+
+export function setMissionAutoRun(run) {
+  missionAutoRun = Boolean(run);
+}
+
+export function setMissionSpeed(speed) {
+  missionSpeed = Math.max(MISSION_SPEED_MIN, Math.min(MISSION_SPEED_MAX, Number(speed) || 12));
+}
+
+export function getMissionSpeed() {
+  return missionSpeed;
+}
+
+export function resetMission() {
+  mockAgents = mockAgents.map((a) => ({ ...a, mode: "idle", currentTargetId: null }));
+  mockTargets = mockTargets.map((t) => ({ ...t, status: "unassigned", assignedAgentId: null }));
+  mockAssignments = computeMockAssignments();
+  emit(TOPICS.agents, mockAgents);
+  emit(TOPICS.tracks, enrichTargetsWithVisibility());
+  emit(TOPICS.assignments, mockAssignments);
+}
+
+function runMissionStep() {
+  const speed = missionSpeed;
+  const arrived = new Set();
+
+  // 1) Assign idle agents to nearest non-rescued, unassigned target
+  mockAgents = mockAgents.map((a) => {
+    if (a.mode === "enroute" && a.currentTargetId) return a;
+    const available = mockTargets.filter((t) => t.status !== "rescued" && t.assignedAgentId == null);
+    if (available.length === 0) return a;
+    const withDist = available.map((t) => ({ target: t, d: Math.hypot(t.x - a.x, t.y - a.y) }));
+    withDist.sort((x, y) => x.d - y.d);
+    const pick = withDist[0].target;
+    return { ...a, mode: "enroute", currentTargetId: pick.id };
+  });
+
+  // 2) Update targets: mark assigned
+  const assignedByAgent = new Map(mockAgents.filter((a) => a.currentTargetId).map((a) => [a.currentTargetId, a.id]));
+  mockTargets = mockTargets.map((t) => {
+    const aid = assignedByAgent.get(t.id);
+    if (aid && t.status !== "rescued") {
+      return { ...t, status: "assigned", assignedAgentId: aid };
+    }
+    return t;
+  });
+
+  // 3) Move agents toward target; check arrival
+  mockAgents = mockAgents.map((a) => {
+    if (a.mode !== "enroute" || !a.currentTargetId) return a;
+    const target = mockTargets.find((t) => t.id === a.currentTargetId);
+    if (!target || target.status === "rescued") {
+      return { ...a, mode: "idle", currentTargetId: null };
+    }
+    const dx = target.x - a.x;
+    const dy = target.y - a.y;
+    const d = Math.hypot(dx, dy);
+    if (d <= ARRIVAL_RADIUS) {
+      arrived.add(a.currentTargetId);
+      return { ...a, x: target.x, y: target.y, mode: "idle", currentTargetId: null };
+    }
+    const step = Math.min(speed, Math.max(0, d - ARRIVAL_RADIUS));
+    const nx = a.x + (dx / d) * step;
+    const ny = a.y + (dy / d) * step;
+    const cx = Math.max(20, Math.min(MOCK_BOUNDS.w - 20, nx));
+    const cy = Math.max(20, Math.min(MOCK_BOUNDS.h - 20, ny));
+    return { ...a, x: cx, y: cy };
+  });
+
+  // 4) Mark arrived targets as rescued
+  mockTargets = mockTargets.map((t) =>
+    arrived.has(t.id) ? { ...t, status: "rescued", assignedAgentId: null } : t
+  );
+
+  // 5) Immediately assign next for idle agents (one more pass)
+  mockAgents = mockAgents.map((a) => {
+    if (a.mode === "enroute" || a.currentTargetId) return a;
+    const available = mockTargets.filter((t) => t.status !== "rescued" && t.assignedAgentId == null);
+    if (available.length === 0) return a;
+    const withDist = available.map((t) => ({ target: t, d: Math.hypot(t.x - a.x, t.y - a.y) }));
+    withDist.sort((x, y) => x.d - y.d);
+    const pick = withDist[0].target;
+    return { ...a, mode: "enroute", currentTargetId: pick.id };
+  });
+  const assigned2 = new Map(mockAgents.filter((a) => a.currentTargetId).map((a) => [a.currentTargetId, a.id]));
+  mockTargets = mockTargets.map((t) => {
+    const aid = assigned2.get(t.id);
+    if (aid && t.status !== "rescued") return { ...t, status: "assigned", assignedAgentId: aid };
+    return t;
+  });
+
+  mockAssignments = computeMockAssignments();
+  emit(TOPICS.agents, mockAgents);
+  emit(TOPICS.tracks, enrichTargetsWithVisibility());
+  emit(TOPICS.assignments, mockAssignments);
+}
+
+export function stepMissionOnce() {
+  if (mode === "mock") runMissionStep();
+}
+
+function isTargetVisible(target) {
+  const now = Date.now();
+  if (occludedTargets.has(target.id) && occludedTargets.get(target.id) > now) return false;
+  return mockAgents.some((a) => Math.hypot(a.x - target.x, a.y - target.y) <= VISION_RADIUS);
+}
+
+function enrichTargetsWithVisibility() {
+  const now = Date.now();
+  occludedTargets.forEach((expiry, id) => {
+    if (expiry <= now) occludedTargets.delete(id);
+  });
+  return mockTargets.map((t) => {
+    const visibleNow = isTargetVisible(t);
+    if (visibleNow) targetLastSeenAtMs.set(t.id, now);
+    const lastSeen = targetLastSeenAtMs.get(t.id) ?? (visibleNow ? now : 0);
+    return { ...t, visibleNow, lastSeenAtMs: lastSeen, secondsSinceSeen: (now - lastSeen) / 1000 };
+  });
+}
+
+export function getVisionRadius() {
+  return VISION_RADIUS;
+}
+
+export function setVisionRadius(r) {
+  VISION_RADIUS = Math.max(50, Math.min(400, r));
+}
+
+export function occludeRandomTarget(seconds = 5) {
+  if (mockTargets.length === 0) return;
+  const t = mockTargets[Math.floor(Math.random() * mockTargets.length)];
+  occludedTargets.set(t.id, Date.now() + seconds * 1000);
+}
+
+export function occludeTargetById(id, seconds = 5) {
+  if (!id) return;
+  occludedTargets.set(String(id), Date.now() + seconds * 1000);
+}
+
+export function setMockTargetsMove(move) {
+  mockTargetsMove = Boolean(move);
+}
+
+export function getMockTargetsMove() {
+  return mockTargetsMove;
 }
 
 function computeMockAssignments() {
@@ -124,6 +302,10 @@ function computeMockAssignments() {
 }
 
 function tickMock() {
+  if (missionAutoRun) {
+    runMissionStep();
+    return;
+  }
   mockTime += TICK_MS / 1000;
   mockAgents = mockAgents.map((a, i) => {
     const dx = Math.sin(mockTime + i) * 12;
@@ -134,21 +316,34 @@ function tickMock() {
     y = Math.max(20, Math.min(MOCK_BOUNDS.h - 20, y));
     return { ...a, x, y };
   });
+  if (mockTargetsMove) {
+    mockTargets = mockTargets.map((t, i) => {
+      const dx = Math.sin(mockTime * 0.5 + i + 10) * 8;
+      const dy = Math.cos(mockTime * 0.4 + i + 5) * 6;
+      let x = t.x + dx;
+      let y = t.y + dy;
+      x = Math.max(20, Math.min(MOCK_BOUNDS.w - 20, x));
+      y = Math.max(20, Math.min(MOCK_BOUNDS.h - 20, y));
+      return { ...t, x, y };
+    });
+  }
   mockAssignments = computeMockAssignments();
   emit(TOPICS.agents, mockAgents);
-  emit(TOPICS.tracks, mockTargets);
+  emit(TOPICS.tracks, enrichTargetsWithVisibility());
   emit(TOPICS.assignments, mockAssignments);
 }
 
 function startMock() {
   initMockState();
+  occludedTargets.clear();
+  targetLastSeenAtMs.clear();
   if (mockTickId != null) clearInterval(mockTickId);
   mockTickId = null;
   if (mockDemoRunning) mockTickId = setInterval(tickMock, TICK_MS);
   mode = "mock";
   if (statusCallback) statusCallback("mock");
   emit(TOPICS.agents, mockAgents);
-  emit(TOPICS.tracks, mockTargets);
+  emit(TOPICS.tracks, enrichTargetsWithVisibility());
   emit(TOPICS.assignments, mockAssignments);
 }
 
@@ -271,8 +466,8 @@ export function send(eventKey, payload = {}) {
     const id = payload.id ?? `t${Date.now()}`;
     const x = typeof payload.x === "number" ? payload.x : payload.position?.x ?? 0;
     const y = typeof payload.y === "number" ? payload.y : payload.position?.y ?? 0;
-    mockTargets = [...mockTargets, { id: String(id), x, y, label: `T${id}` }];
-    emit(TOPICS.tracks, mockTargets);
+    mockTargets = [...mockTargets, { id: String(id), x, y, label: id, type: "target", status: "unassigned", assignedAgentId: null }];
+    emit(TOPICS.tracks, enrichTargetsWithVisibility());
   }
 }
 
@@ -286,8 +481,8 @@ export function getMockTargets() {
 
 export function addMockPin(x, y) {
   const id = `pin_${Date.now()}`;
-  mockTargets = [...mockTargets, { id, x, y, label: id }];
-  emit(TOPICS.tracks, mockTargets);
+  mockTargets = [...mockTargets, { id, x, y, label: id, type: "target", status: "unassigned", assignedAgentId: null }];
+  emit(TOPICS.tracks, enrichTargetsWithVisibility());
   send(EVENTS.pin_create, { id, x, y });
 }
 
@@ -296,22 +491,26 @@ export function spawnMockTarget() {
   const id = `t${Date.now()}`;
   const x = 80 + Math.random() * (MOCK_BOUNDS.w - 160);
   const y = 60 + Math.random() * (MOCK_BOUNDS.h - 120);
-  mockTargets = [...mockTargets, { id, x, y, label: id }];
+  mockTargets = [...mockTargets, { id, x, y, label: id, type: "target", status: "unassigned", assignedAgentId: null }];
   mockAssignments = computeMockAssignments();
-  emit(TOPICS.tracks, mockTargets);
+  emit(TOPICS.tracks, enrichTargetsWithVisibility());
   emit(TOPICS.assignments, mockAssignments);
 }
 
-/** Remove one target (most recently added, or last in list). Works with or without tick. */
-export function neutraliseMockTarget() {
+/** Remove one target by id, or most recently added if no id. Works with or without tick. */
+export function neutraliseMockTarget(targetId) {
   if (mockTargets.length === 0) return;
-  mockTargets = mockTargets.slice(0, -1);
+  if (targetId != null) {
+    mockTargets = mockTargets.filter((t) => t.id !== String(targetId));
+  } else {
+    mockTargets = mockTargets.slice(0, -1);
+  }
   mockAssignments = computeMockAssignments();
-  emit(TOPICS.tracks, mockTargets);
+  emit(TOPICS.tracks, enrichTargetsWithVisibility());
   emit(TOPICS.assignments, mockAssignments);
 }
 
-/** Randomize all target positions in bounds. Works with or without tick. */
+/** Randomize all target positions in bounds. Often moves outside VISION_RADIUS so staleness appears. */
 export function scatterMockTargets() {
   mockTargets = mockTargets.map((t) => {
     const x = 80 + Math.random() * (MOCK_BOUNDS.w - 160);
@@ -319,6 +518,6 @@ export function scatterMockTargets() {
     return { ...t, x, y };
   });
   mockAssignments = computeMockAssignments();
-  emit(TOPICS.tracks, mockTargets);
+  emit(TOPICS.tracks, enrichTargetsWithVisibility());
   emit(TOPICS.assignments, mockAssignments);
 }
