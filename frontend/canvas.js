@@ -1,5 +1,5 @@
 /**
- * Canvas renderer — P1 (solid), P2 (dashed), Proximity (dotted)
+ * Canvas renderer — P1 (solid), P2 (dashed), P3 (dotted), Proximity (faint dotted)
  * Supports HiDPI/Retina displays via devicePixelRatio scaling.
  */
 
@@ -49,7 +49,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WW, y); ctx.stroke();
   }
 
-  const { primary, agentSecondary, proximity } = result;
+  const { primary, secondary, tertiary, agentSecondary, proximity } = result;
 
   // Coverage zones
   if (showZones) {
@@ -70,7 +70,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
   for (const t of targets) {
     const proxId = proximity[t.id];
     if (!proxId) continue;
-    if (primary[t.id] === proxId || agentSecondary[proxId] === t.id) continue;
+    if (primary[t.id] === proxId || secondary[t.id] === proxId || tertiary[t.id] === proxId || agentSecondary[proxId] === t.id) continue;
     const a = agents.find((x) => x.id === proxId);
     if (!a) continue;
     const isHl = highlighted === proxId || highlighted === `t${t.id}`;
@@ -116,6 +116,30 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.restore();
   }
 
+  // Tertiary lines (light dotted) — one per target from tertiary map
+  for (const [tidStr, aId] of Object.entries(tertiary || {})) {
+    const t = targets.find((x) => x.id === +tidStr);
+    const a = agents.find((x) => x.id === aId);
+    if (!t || !a) continue;
+    const isHl = highlighted === aId || highlighted === `t${t.id}`;
+    const color = AGENT_COLORS[aId] || "#888";
+    const d = euclidean(t.position, a.position);
+    ctx.save();
+    ctx.globalAlpha = isHl ? 0.75 : 0.25;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isHl ? 1.8 : 1.1;
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath(); ctx.moveTo(t.position.x, t.position.y); ctx.lineTo(a.position.x, a.position.y); ctx.stroke();
+    ctx.setLineDash([]);
+    const mx = (t.position.x + a.position.x) / 2;
+    const my = (t.position.y + a.position.y) / 2;
+    ctx.globalAlpha = isHl ? 0.8 : 0.35;
+    ctx.fillStyle = color;
+    ctx.font = "9px 'JetBrains Mono',monospace";
+    ctx.fillText(`P3·${d.toFixed(0)}m`, mx + 3, my + 18);
+    ctx.restore();
+  }
+
   // Primary lines (solid, bold, glowing)
   for (const [tidStr, aId] of Object.entries(primary)) {
     const t = targets.find((x) => x.id === +tidStr);
@@ -146,7 +170,8 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
   for (const t of targets) {
     const isHl = highlighted === `t${t.id}`;
     const hasPrim = primary[t.id] !== undefined;
-    const hasSec = Object.values(agentSecondary).includes(t.id);
+    const hasSec = secondary?.[t.id] !== undefined || Object.values(agentSecondary).includes(t.id);
+    const hasTer = tertiary?.[t.id] !== undefined;
     const age = (now - t.lastSeen) / STALE_TTL;
     const alpha = Math.max(0.2, 1 - age * 0.8);
     const pulse = 0.5 + 0.5 * Math.sin(now / 380 + t.id * 1.4);
@@ -163,7 +188,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     // Main dot
     ctx.globalAlpha = alpha;
     ctx.beginPath(); ctx.arc(t.position.x, t.position.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = hasPrim ? TARGET_COLOR : hasSec ? "#e07030" : "#601818";
+    ctx.fillStyle = hasPrim ? TARGET_COLOR : hasSec ? "#e07030" : hasTer ? "#b8783a" : "#601818";
     ctx.fill();
     ctx.strokeStyle = isHl ? "#fff" : "rgba(255,255,255,0.55)";
     ctx.lineWidth = isHl ? 2 : 1.2;
@@ -183,8 +208,8 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.fillText(`T${t.id}`, t.position.x + r + 5, t.position.y - 3);
 
     // Status badge
-    const badge = hasPrim ? "P1" : hasSec ? "P2" : "!!";
-    const badgeCol = hasPrim ? "#4ade80" : hasSec ? "#fee440" : "#ff4d4d";
+    const badge = hasPrim ? "P1" : hasSec ? "P2" : hasTer ? "P3" : "!!";
+    const badgeCol = hasPrim ? "#4ade80" : hasSec ? "#fee440" : hasTer ? "#ff9f43" : "#ff4d4d";
     ctx.fillStyle = "rgba(0,0,0,0.75)"; ctx.fillRect(t.position.x + r + 3, t.position.y + 5, 20, 12);
     ctx.fillStyle = badgeCol; ctx.font = "bold 9px 'JetBrains Mono',monospace";
     ctx.fillText(badge, t.position.x + r + 5, t.position.y + 15);

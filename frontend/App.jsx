@@ -12,7 +12,7 @@ export default function App() {
 
   const [ui, setUi]           = useState(null);
   const [result, setResult]   = useState({
-    primary: {}, secondary: {}, proximity: {}, agentPriorities: {},
+    primary: {}, secondary: {}, tertiary: {}, proximity: {}, agentPriorities: {},
     matrix: { byAgent: {}, byTarget: {} },
   });
   const [paused, setPaused]   = useState(false);
@@ -23,6 +23,10 @@ export default function App() {
   const [tick, setTick]       = useState(0);
   const [rCount, setRC]       = useState(0);
   const [tab, setTab]         = useState("priority");
+  const [matrixFocus, setMatrixFocus] = useState("all");
+  const [jsonView, setJsonView] = useState("full");
+  const [jsonPretty, setJsonPretty] = useState(true);
+  const [logFilter, setLogFilter] = useState("all");
   const [schematicImg, setSchematicImg] = useState(null);
   const [wallGrid, setWallGrid]         = useState(null);
   const fileInputRef = useRef(null);
@@ -137,7 +141,11 @@ export default function App() {
   // ── Derived ───────────────────────────────────────────────────────────────
   const agents   = ui?.agents  || [];
   const targets  = ui?.targets || [];
-  const unassigned = targets.filter(t => result.primary[t.id] === undefined && result.secondary[t.id] === undefined);
+  const unassigned = targets.filter((t) =>
+    result.primary[t.id] === undefined
+    && result.secondary[t.id] === undefined
+    && result.tertiary[t.id] === undefined
+  );
 
   const C = {
     bg:"#05080e", panel:"#080c14", border:"#141e2e",
@@ -147,14 +155,27 @@ export default function App() {
   };
 
   const TabBtn = ({ id, label }) => (
-    <button onClick={() => setTab(id)} style={{
+    <button
+      type="button"
+      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setTab(id); }}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setTab(id); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          setTab(id);
+        }
+      }}
+      style={{
       background: tab === id ? C.panel : "transparent",
       border: `1px solid ${tab === id ? C.border : "transparent"}`,
       borderBottom: tab === id ? `1px solid ${C.panel}` : `1px solid ${C.border}`,
       color: tab === id ? C.bright : C.dim, padding: "5px 12px", cursor: "pointer",
       fontSize: 9, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em",
       borderRadius: "4px 4px 0 0", marginBottom: -1, transition: "all 0.15s",
-    }}>{label}</button>
+      position: "relative", zIndex: 8, pointerEvents: "auto",
+    }}
+    >{label}</button>
   );
 
   // Matrix rows for display
@@ -165,7 +186,8 @@ export default function App() {
       d: result.matrix.byTarget?.[t.id]?.[a.id] ?? euclidean(t.position, a.position),
       isPrim: result.primary[t.id] === a.id,
       isSec:  result.secondary[t.id] === a.id,
-      isProx: result.proximity[t.id] === a.id && result.primary[t.id] !== a.id && result.secondary[t.id] !== a.id,
+      isTer:  result.tertiary[t.id] === a.id,
+      isProx: result.proximity[t.id] === a.id && result.primary[t.id] !== a.id && result.secondary[t.id] !== a.id && result.tertiary[t.id] !== a.id,
     })).sort((a, b) => a.d - b.d),
   }));
 
@@ -179,11 +201,31 @@ export default function App() {
         target_id: +tid, agent_id: aid, role: "secondary",
         distance: +(result.matrix.byTarget?.[+tid]?.[aid] ?? 0).toFixed(2),
       })),
+      ...Object.entries(result.tertiary).map(([tid, aid]) => ({
+        target_id: +tid, agent_id: aid, role: "tertiary",
+        distance: +(result.matrix.byTarget?.[+tid]?.[aid] ?? 0).toFixed(2),
+      })),
     ],
     proximity: Object.entries(result.proximity).map(([tid, aid]) => ({ target_id: +tid, closest_agent: aid })),
     unassigned_targets: unassigned.map(t => t.id),
     algorithm: "v2_priority_antithrash",
     timestamp: Date.now(),
+  };
+  const jsonPayloadView = jsonView === "assignments"
+    ? { assignments: jsonPayload.assignments }
+    : jsonView === "proximity"
+    ? { proximity: jsonPayload.proximity }
+    : jsonView === "coverage"
+    ? { unassigned_targets: jsonPayload.unassigned_targets }
+    : jsonPayload;
+
+  const visibleEvents = events.filter((e) => logFilter === "all" || e.type === logFilter);
+  const logCounts = {
+    all: events.length,
+    reassign: events.filter((e) => e.type === "reassign").length,
+    spawn: events.filter((e) => e.type === "spawn").length,
+    remove: events.filter((e) => e.type === "remove").length,
+    system: events.filter((e) => e.type === "system").length,
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -203,7 +245,7 @@ export default function App() {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
         <div>
           <div style={{ fontSize:15, fontWeight:700, letterSpacing:"0.15em", color:C.teal }}>◈ PRIORITY ASSIGNMENT ENGINE</div>
-          <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em", marginTop:2 }}>DISTANCE-BASED PRIORITY · P1 SOLID · P2 DASHED · PROXIMITY ON HOVER · V2 ANTI-THRASH</div>
+          <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em", marginTop:2 }}>DISTANCE-BASED PRIORITY · P1 SOLID · P2 DASHED · P3 DOTTED · PROXIMITY ON HOVER</div>
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
           {[
@@ -222,11 +264,39 @@ export default function App() {
           <button onClick={neutralise} style={{ background:"#0a160e", border:`1px solid #1a4020`, color:C.green, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊘ NEUTRALISE</button>
           <button onClick={scatter} style={{ background:"#12100a", border:`1px solid #3a3010`, color:C.yellow, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⚡ SCATTER</button>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleSchematicUpload} style={{ display:"none" }}/>
-          <button onClick={() => fileInputRef.current?.click()} style={{ background:"#0e1218", border:`1px solid ${C.teal}60`, color:C.teal, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>🏗 SCHEMATIC</button>
+          <button onClick={() => fileInputRef.current?.click()} style={{
+            background:"linear-gradient(135deg, #0d1c2d, #15324d)",
+            border:`1px solid ${C.teal}`,
+            color:"#c8fff5",
+            padding:"8px 16px",
+            borderRadius:5,
+            cursor:"pointer",
+            fontSize:11,
+            fontWeight:700,
+            letterSpacing:"0.07em",
+            boxShadow:`0 0 16px ${C.teal}55`,
+            fontFamily:"inherit",
+          }}> LOAD SCHEMATIC</button>
           {schematicImg && <button onClick={clearSchematic} style={{ background:"#180e0e", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
           <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:4, padding:"6px 10px", fontSize:9, color:C.dim, display:"flex", alignItems:"center", gap:6 }}>
             <span style={{ color:paused?C.orange:C.green, animation:paused?"none":"pulse 1.5s infinite" }}>●</span>
             {String(tick).padStart(4,"0")} <span style={{ color:C.dim }}>|</span> <span style={{ color:rCount?C.yellow:C.dim }}>↩{rCount}</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, background:"#0b121c", border:`1px solid ${C.border}`, borderRadius:4, padding:"5px 6px" }}>
+            <span style={{ fontSize:8, color:C.dim, letterSpacing:"0.08em" }}>VIEW</span>
+            {[
+              { id:"priority", lbl:"P" },
+              { id:"matrix", lbl:"M" },
+              { id:"json", lbl:"J" },
+              { id:"log", lbl:"L" },
+            ].map((v) => (
+              <button key={v.id} type="button" onClick={() => setTab(v.id)} style={{
+                background: tab === v.id ? "#123049" : "#0a111b",
+                border:`1px solid ${tab === v.id ? C.teal+"80" : C.border}`,
+                color: tab === v.id ? C.teal : C.dim,
+                minWidth:22, height:20, borderRadius:3, cursor:"pointer", fontSize:9, fontFamily:"inherit",
+              }}>{v.lbl}</button>
+            ))}
           </div>
         </div>
       </div>
@@ -234,11 +304,12 @@ export default function App() {
       {/* ── Line Legend ── */}
       <div style={{ display:"flex", gap:14, marginBottom:10, padding:"7px 12px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em" }}>LINE KEY:</span>
-        {[
-          { stroke:"#aaa", dash:"", w:2.5,  label:"P1 Primary Target" },
-          { stroke:"#aaa", dash:"5,4", w:1.5, label:"P2 Secondary Target" },
-          { stroke:"#aaa", dash:"2,8", w:1.0, label:"Proximity - shown on hover" },
-        ].map(({ stroke, dash, w, label }) => (
+          {[
+            { stroke:"#aaa", dash:"", w:2.5,  label:"P1 Primary Target" },
+            { stroke:"#aaa", dash:"5,4", w:1.5, label:"P2 Secondary Target" },
+            { stroke:"#aaa", dash:"2,4", w:1.2, label:"P3 Tertiary Target" },
+            { stroke:"#aaa", dash:"2,8", w:1.0, label:"Proximity - shown on hover" },
+          ].map(({ stroke, dash, w, label }) => (
           <div key={label} style={{ display:"flex", alignItems:"center", gap:6 }}>
             <svg width="30" height="8" style={{ flexShrink:0 }}>
               <line x1="0" y1="4" x2="30" y2="4" stroke={stroke} strokeWidth={w} strokeDasharray={dash} opacity={dash==="2,8"?"0.4":"0.85"}/>
@@ -247,7 +318,7 @@ export default function App() {
           </div>
         ))}
         <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
-          {[{ bg:TARGET_COLOR, label:"P1 assigned" }, { bg:"#e07030", label:"P2 only" }, { bg:"#601818", label:"Unassigned" }].map(x=>(
+          {[{ bg:TARGET_COLOR, label:"P1 assigned" }, { bg:"#e07030", label:"P2 assigned" }, { bg:"#b8783a", label:"P3 assigned" }, { bg:"#601818", label:"Unassigned" }].map(x=>(
             <div key={x.label} style={{ display:"flex", alignItems:"center", gap:4 }}>
               <div style={{ width:9, height:9, borderRadius:"50%", background:x.bg }}/><span style={{ fontSize:9, color:C.text }}>{x.label}</span>
             </div>
@@ -283,9 +354,9 @@ export default function App() {
             {[
               { label:"P1 ASSIGNED",  val:Object.keys(result.primary).length,   col:C.green },
               { label:"P2 COVERAGE",  val:Object.keys(result.secondary).length,  col:C.yellow },
+              { label:"P3 COVERAGE",  val:Object.keys(result.tertiary).length,  col:C.orange },
               { label:"UNASSIGNED",   val:unassigned.length,                     col:unassigned.length?C.red:C.dim },
               { label:"TOTAL TARGETS",val:targets.length,                        col:C.teal },
-              { label:"REASSIGNS",    val:rCount,                                col:rCount?C.orange:C.dim },
             ].map(s => (
               <div key={s.label} style={{ flex:1, textAlign:"center", padding:"9px 4px", borderRight:`1px solid ${C.border}` }}>
                 <div style={{ fontSize:20, fontWeight:700, color:s.col, lineHeight:1 }}>{s.val}</div>
@@ -295,22 +366,22 @@ export default function App() {
           </div>
 
           {/* Tabs */}
-          <div style={{ borderBottom:`1px solid ${C.border}`, display:"flex", paddingLeft:8, background:"#060a10" }}>
-            <TabBtn id="priority" label="🎯 PRIORITIES"/>
-            <TabBtn id="matrix"   label="📊 MATRIX"/>
-            <TabBtn id="json"     label="{ } JSON"/>
-            <TabBtn id="log"      label="📋 LOG"/>
+          <div style={{ borderBottom:`1px solid ${C.border}`, display:"flex", paddingLeft:8, background:"#060a10", position:"relative", zIndex:7, pointerEvents:"auto" }}>
+            <TabBtn id="priority" label="PRIORITIES"/>
+            <TabBtn id="matrix"   label="MATRIX"/>
+            <TabBtn id="json"     label="JSON"/>
+            <TabBtn id="log"      label="LOG"/>
           </div>
 
           {/* Tab body */}
-          <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderTop:"none", borderRadius:"0 0 6px 6px", padding:12, minHeight:290, maxHeight:370, overflow:"auto" }}>
+          <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderTop:"none", borderRadius:"0 0 6px 6px", padding:12, minHeight:290, maxHeight:370, overflow:"auto", position:"relative", zIndex:1 }}>
 
             {/* PRIORITY TAB */}
             {tab === "priority" && (
               <div>
                 <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em", marginBottom:10 }}>
-                  Each agent's targets ranked by distance. P1 = closest target (solid + glow). P2 = second-closest target (dashed).
-                  Agents hold both P1 and P2 simultaneously. Anti-thrash: P1 only reassigns if &gt;2.5 m closer.
+                  Each agent's targets ranked by distance. P1 = primary task. P2 = next task. P3 = overflow/backlog task.
+                  Extra targets are queued by closest-agent assignment with tie-break on earliest task completion.
                 </div>
                 {agents.map(agent => {
                   const color  = AGENT_COLORS[agent.id] || "#888";
@@ -329,11 +400,12 @@ export default function App() {
                         <span style={{ marginLeft:"auto", display:"flex", gap:4 }}>
                           {prList.find(e=>e.role==="primary") && <span style={{ fontSize:8, color:C.green, border:`1px solid ${C.green}50`, borderRadius:3, padding:"1px 5px" }}>P1 ✓</span>}
                           {prList.find(e=>e.role==="secondary") && <span style={{ fontSize:8, color:C.yellow, border:`1px solid ${C.yellow}50`, borderRadius:3, padding:"1px 5px" }}>P2 ~</span>}
+                          {prList.find(e=>e.role==="tertiary") && <span style={{ fontSize:8, color:C.orange, border:`1px solid ${C.orange}50`, borderRadius:3, padding:"1px 5px" }}>P3 ·</span>}
                         </span>
                       </div>
                       {prList.length === 0 ? <div style={{ fontSize:9, color:C.dim }}>No targets</div>
                         : prList.map(({ targetId, distance, role }) => {
-                          const isAssigned = role === "primary" || role === "secondary";
+                          const isAssigned = role === "primary" || role === "secondary" || role === "tertiary";
                           return (
                           <div key={targetId} style={{
                             display:"flex", alignItems:"center", gap:6, padding:"3px 0",
@@ -345,17 +417,17 @@ export default function App() {
                               <div style={{
                                 height:"100%", borderRadius:2, transition:"width 0.15s",
                                 width:`${Math.max(4, Math.min(100, 100 - distance * 0.16))}%`,
-                                background: role==="primary"?C.green:role==="secondary"?C.yellow:C.dim+"40",
+                                background: role==="primary"?C.green:role==="secondary"?C.yellow:role==="tertiary"?C.orange:C.dim+"40",
                               }}/>
                             </div>
                             <span style={{ fontSize:9, color:C.dim, minWidth:36, textAlign:"right" }}>{distance.toFixed(0)}m</span>
                             {isAssigned ? (
                               <span style={{ minWidth:30, fontSize:8, fontWeight:700, textAlign:"center",
-                                color:role==="primary"?C.green:C.yellow,
-                                border:`1px solid ${role==="primary"?C.green+"40":C.yellow+"40"}`,
+                                color:role==="primary"?C.green:role==="secondary"?C.yellow:C.orange,
+                                border:`1px solid ${role==="primary"?C.green+"40":role==="secondary"?C.yellow+"40":C.orange+"40"}`,
                                 borderRadius:3, padding:"1px 4px",
                               }}>
-                                {role==="primary"?"P1":"P2"}
+                                {role==="primary"?"P1":role==="secondary"?"P2":"P3"}
                               </span>
                             ) : (
                               <span style={{ minWidth:30, fontSize:8, textAlign:"center", color:C.dim }}>—</span>
@@ -373,8 +445,25 @@ export default function App() {
             {/* MATRIX TAB */}
             {tab === "matrix" && (
               <div>
-                <div style={{ fontSize:9, color:C.dim, marginBottom:6 }}>
-                  Full distance matrix (metres). <span style={{ color:C.green }}>Green✓ = P1</span> · <span style={{ color:C.yellow }}>Yellow~ = P2</span> · <span style={{ color:C.teal }}>Teal● = proximity (closest, not assigned)</span>
+                <div style={{ fontSize:9, color:C.dim, marginBottom:8, lineHeight:1.6 }}>
+                  Distance matrix = raw assignment computation. Rows are targets, columns are agents, and every cell is the live metre distance recomputed each tick.
+                  <span style={{ color:C.green }}> Green✓</span> = P1, <span style={{ color:C.yellow }}>Yellow~</span> = P2, <span style={{ color:C.orange }}>Orange·</span> = P3, <span style={{ color:C.teal }}>Teal●</span> = closest-but-not-assigned.
+                </div>
+                <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
+                  {[
+                    { id:"all", lbl:"ALL" },
+                    { id:"p1", lbl:"P1 ONLY" },
+                    { id:"p2", lbl:"P2 ONLY" },
+                    { id:"p3", lbl:"P3 ONLY" },
+                    { id:"prox", lbl:"PROX ONLY" },
+                  ].map((b) => (
+                    <button key={b.id} onClick={() => setMatrixFocus(b.id)} style={{
+                      background: matrixFocus === b.id ? "#122031" : "#0a111b",
+                      border:`1px solid ${matrixFocus === b.id ? C.teal+"80" : C.border}`,
+                      color: matrixFocus === b.id ? C.teal : C.dim,
+                      padding:"3px 8px", borderRadius:4, cursor:"pointer", fontSize:9, fontFamily:"inherit",
+                    }}>{b.lbl}</button>
+                  ))}
                 </div>
                 <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
                   <thead>
@@ -390,6 +479,7 @@ export default function App() {
                     {matrixRows.map(({ targetId, row }) => {
                       const primAgent = result.primary[targetId];
                       const secAgent  = result.secondary[targetId];
+                      const terAgent  = result.tertiary[targetId];
                       return (
                         <tr key={targetId}
                           style={{ background:hl===`t${targetId}`?"#0a1422":"transparent", cursor:"pointer" }}
@@ -397,16 +487,22 @@ export default function App() {
                           <td style={{ padding:"4px 8px", borderBottom:`1px solid ${C.border}`, color:TARGET_COLOR, fontWeight:700 }}>T{targetId}</td>
                           {agents.map(a => {
                             const cell = row.find(r => r.agentId === a.id);
-                            const { d, isPrim, isSec, isProx } = cell || { d:0, isPrim:false, isSec:false, isProx:false };
+                            const { d, isPrim, isSec, isTer, isProx } = cell || { d:0, isPrim:false, isSec:false, isTer:false, isProx:false };
+                            const focusMatch = matrixFocus === "all"
+                              || (matrixFocus === "p1" && isPrim)
+                              || (matrixFocus === "p2" && isSec)
+                              || (matrixFocus === "p3" && isTer)
+                              || (matrixFocus === "prox" && isProx);
                             return (
                               <td key={a.id} style={{
                                 padding:"4px 8px", textAlign:"center", borderBottom:`1px solid ${C.border}`,
-                                color: isPrim?C.green:isSec?C.yellow:isProx?C.teal:C.dim,
-                                fontWeight: isPrim||isSec?700:400,
-                                background: isPrim?"rgba(74,222,128,0.08)":isSec?"rgba(254,228,64,0.06)":"transparent",
+                                color: isPrim?C.green:isSec?C.yellow:isTer?C.orange:isProx?C.teal:C.dim,
+                                fontWeight: isPrim||isSec||isTer?700:400,
+                                background: isPrim?"rgba(74,222,128,0.08)":isSec?"rgba(254,228,64,0.06)":isTer?"rgba(255,159,67,0.07)":"transparent",
                                 fontSize:10,
+                                opacity: focusMatch ? 1 : 0.28,
                               }}>
-                                {isProx?"●":""}{d.toFixed(0)}{isPrim?"✓":isSec?"~":""}
+                                {isProx?"●":""}{d.toFixed(0)}{isPrim?"✓":isSec?"~":isTer?"·":""}
                               </td>
                             );
                           })}
@@ -415,6 +511,8 @@ export default function App() {
                               ? <span style={{ color:AGENT_COLORS[primAgent], fontWeight:700 }}>{primAgent} <span style={{ color:C.green }}>P1</span></span>
                               : secAgent
                               ? <span style={{ color:AGENT_COLORS[secAgent] }}>{secAgent} <span style={{ color:C.yellow }}>P2</span></span>
+                              : terAgent
+                              ? <span style={{ color:AGENT_COLORS[terAgent] }}>{terAgent} <span style={{ color:C.orange }}>P3</span></span>
                               : <span style={{ color:C.red }}>NONE</span>}
                           </td>
                         </tr>
@@ -423,8 +521,8 @@ export default function App() {
                   </tbody>
                 </table>
                 <div style={{ marginTop:8, fontSize:9, color:C.dim, lineHeight:1.7 }}>
-                  Anti-thrash: P1 only reassigns if improvement &gt; <span style={{ color:C.yellow }}>{REASSIGN_THRESHOLD}m</span>.
-                  P2 = each agent's second-closest target. Proximity lines shown on hover only.
+                  Euclidean mode queues extra targets into P2 then P3 tiers. Selection favors closest agent, then earliest completion.
+                  Pathfinding mode still uses anti-thrash threshold of <span style={{ color:C.yellow }}>{REASSIGN_THRESHOLD}m</span>.
                 </div>
               </div>
             )}
@@ -433,10 +531,38 @@ export default function App() {
             {tab === "json" && (
               <div>
                 <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em", marginBottom:8 }}>
-                  Live output payload — mirrors <code style={{ color:C.teal }}>assignment_engine.get_output()</code> · sent to Person 4 via WebSocket
+                  Live payload mirrored to Person 4 map integration. Use these controls to verify schema segments before wiring WebSocket consumers.
+                </div>
+                <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
+                  {[
+                    { id:"full", lbl:"FULL" },
+                    { id:"assignments", lbl:"ASSIGNMENTS[]" },
+                    { id:"proximity", lbl:"PROXIMITY[]" },
+                    { id:"coverage", lbl:"UNASSIGNED[]" },
+                  ].map((b) => (
+                    <button key={b.id} onClick={() => setJsonView(b.id)} style={{
+                      background: jsonView === b.id ? "#122031" : "#0a111b",
+                      border:`1px solid ${jsonView === b.id ? C.teal+"80" : C.border}`,
+                      color: jsonView === b.id ? C.teal : C.dim,
+                      padding:"3px 8px", borderRadius:4, cursor:"pointer", fontSize:9, fontFamily:"inherit",
+                    }}>{b.lbl}</button>
+                  ))}
+                  <button onClick={() => setJsonPretty((v) => !v)} style={{
+                    background: jsonPretty ? "#14200f" : "#0a111b",
+                    border:`1px solid ${jsonPretty ? C.green+"80" : C.border}`,
+                    color: jsonPretty ? C.green : C.dim,
+                    padding:"3px 8px", borderRadius:4, cursor:"pointer", fontSize:9, fontFamily:"inherit",
+                  }}>{jsonPretty ? "PRETTY" : "MINIFIED"}</button>
+                  <button onClick={() => {
+                    navigator.clipboard?.writeText(JSON.stringify(jsonPayloadView, null, jsonPretty ? 2 : 0));
+                    addEvent("📋 JSON copied to clipboard", "system");
+                  }} style={{
+                    background:"#0f1a12", border:`1px solid ${C.green}60`, color:C.green,
+                    padding:"3px 8px", borderRadius:4, cursor:"pointer", fontSize:9, fontFamily:"inherit",
+                  }}>COPY JSON</button>
                 </div>
                 <pre style={{ margin:0, fontSize:9, color:"#7ab0c8", lineHeight:1.7, background:"#040710", padding:10, borderRadius:4, border:`1px solid ${C.border}`, overflow:"auto", maxHeight:300 }}>
-                  {JSON.stringify(jsonPayload, null, 2)}
+                  {JSON.stringify(jsonPayloadView, null, jsonPretty ? 2 : 0)}
                 </pre>
               </div>
             )}
@@ -445,11 +571,30 @@ export default function App() {
             {tab === "log" && (
               <div>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-                  <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em" }}>EVENT LOG</div>
+                  <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em" }}>EVENT LOG · newest first</div>
                   <button onClick={() => setEvents([])} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.dim, padding:"2px 8px", borderRadius:3, cursor:"pointer", fontSize:9, fontFamily:"inherit" }}>CLEAR</button>
                 </div>
-                {events.length === 0 && <div style={{ fontSize:10, color:C.dim, animation:"pulse 2s infinite" }}>Awaiting events…</div>}
-                {events.map((e, i) => (
+                <div style={{ fontSize:9, color:C.dim, marginBottom:8, lineHeight:1.6 }}>
+                  Audit stream of assignment behavior: <span style={{ color:C.yellow }}>↩ reassign</span>, <span style={{ color:C.red }}>🔴 spawn</span>, <span style={{ color:C.green }}>✅ neutralise</span>, and system status.
+                </div>
+                <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
+                  {[
+                    { id:"all", lbl:`ALL ${logCounts.all}` },
+                    { id:"reassign", lbl:`↩ ${logCounts.reassign}` },
+                    { id:"spawn", lbl:`🔴 ${logCounts.spawn}` },
+                    { id:"remove", lbl:`✅ ${logCounts.remove}` },
+                    { id:"system", lbl:`SYS ${logCounts.system}` },
+                  ].map((b) => (
+                    <button key={b.id} onClick={() => setLogFilter(b.id)} style={{
+                      background: logFilter === b.id ? "#122031" : "#0a111b",
+                      border:`1px solid ${logFilter === b.id ? C.teal+"80" : C.border}`,
+                      color: logFilter === b.id ? C.teal : C.dim,
+                      padding:"3px 8px", borderRadius:4, cursor:"pointer", fontSize:9, fontFamily:"inherit",
+                    }}>{b.lbl}</button>
+                  ))}
+                </div>
+                {visibleEvents.length === 0 && <div style={{ fontSize:10, color:C.dim, animation:"pulse 2s infinite" }}>No events for this filter…</div>}
+                {visibleEvents.map((e, i) => (
                   <div key={e.ts + i} style={{
                     fontSize:10, padding:"3px 0", borderBottom:`1px solid ${C.border}`,
                     color:e.type==="reassign"?C.yellow:e.type==="spawn"?C.red:e.type==="remove"?C.green:C.dim,
@@ -469,6 +614,7 @@ export default function App() {
               const prList = result.agentPriorities[agent.id] || [];
               const primEntry = prList.find(e => e.role === "primary");
               const secEntry  = prList.find(e => e.role === "secondary");
+              const terEntry  = prList.find(e => e.role === "tertiary");
               return (
                 <div key={agent.id} onClick={() => setHL(h => h === agent.id ? null : agent.id)}
                   style={{ background:isHl?"#0e1825":C.panel, border:`1px solid ${isHl?color:C.border}`,
@@ -499,6 +645,16 @@ export default function App() {
                       </>
                     ) : <span style={{ fontSize:8, color:C.dim }}>—</span>}
                   </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:2 }}>
+                    <span style={{ fontSize:8, color:C.orange, fontWeight:700, minWidth:16 }}>P3</span>
+                    {terEntry ? (
+                      <>
+                        <span style={{ background:TARGET_COLOR, color:"#000", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:2 }}>T{terEntry.targetId}</span>
+                        <span style={{ fontSize:8, color:C.dim }}>{terEntry.distance.toFixed(0)}m</span>
+                        <span style={{ marginLeft:"auto", fontSize:8, color:C.orange }}>TERTIARY</span>
+                      </>
+                    ) : <span style={{ fontSize:8, color:C.dim }}>—</span>}
+                  </div>
                 </div>
               );
             })}
@@ -520,7 +676,7 @@ export default function App() {
           { label:"Algorithm",     value:"priority_v2_antithrash",     col:C.green },
           { label:"Reassign Δ",   value:`>${REASSIGN_THRESHOLD}m`,     col:C.yellow },
           { label:"Stale TTL",    value:`${STALE_TTL/1000}s`,          col:C.purple },
-          { label:"Priority",     value:"per-agent distance rank",      col:C.teal },
+          { label:"Priority",     value:"global P1 + queued P2/P3",     col:C.teal },
           { label:"Always drawn", value:"proximity line per target",    col:C.text },
         ].map(c => (
           <div key={c.label} style={{ fontSize:9 }}>
