@@ -17,6 +17,19 @@ const FUSION_CENTER_Y = 5;
 const FRONTEND_WIDTH_CM = 886;
 const FRONTEND_HEIGHT_CM = 688;
 
+/** Schematic 47.17' × 37.5' — same scaling as pathfinding.js schematic-47x37. */
+const W_FT = 47.17;
+const H_FT = 37.5;
+const SX = FRONTEND_WIDTH_CM / W_FT;   // px (cm) per ft horizontal
+const SY = FRONTEND_HEIGHT_CM / H_FT;  // px (cm) per ft vertical
+
+/** Convert schematic position (feet from top-left) to frontend (cm, center origin). */
+function feetToFrontendPos(x_ft, y_ft) {
+  const x_cm = x_ft * SX - FRONTEND_WIDTH_CM / 2;
+  const y_cm = y_ft * SY - FRONTEND_HEIGHT_CM / 2;
+  return { x: x_cm, y: y_cm };
+}
+
 /** Map top (upward direction) = 174° south of geographic north. Phone/camera headings are degrees from perfect north. */
 export const MAP_TOP_BEARING = 174;
 
@@ -36,22 +49,23 @@ function frontendToFusionPos(x_cm, y_cm) {
   return [mx, my];
 }
 
-/** Live Demo: fixed agent positions (frontend cm, center origin). */
-const AGENT_POSITIONS = [
-  { id: "cam_1", x: 6.0833, y: 19, heading: 90 },
-  { id: "cam_2", x: 50, y: 5, heading: 180 },
+/** Live Demo: agent positions in feet (from top-left, same units as schematic 47.17' × 37.5'). */
+const AGENT_POSITIONS_FT = [
+  { id: "cam_1", x_ft: 10, y_ft: 20, heading: 90 },
+  { id: "cam_2", x_ft: 40, y_ft: 5, heading: 180 },
 ];
 
-/** Live Demo: stationary target (frontend cm, center origin). */
-const TARGET_POSITION = { x: 36, y: 11 };
+/** Live Demo: stationary target in feet (from top-left). */
+const TARGET_POSITION_FT = { x_ft: 25, y_ft: 15 };
 
 /**
  * Generate mock fusion data for Live Demo when fusion server is unavailable.
- * 2 agents at fixed positions, 1 stationary target.
+ * 2 agents and 1 target at fixed positions (feet).
  */
 function getMockFusionData(now = Date.now()) {
-  const cameras = AGENT_POSITIONS.map((a) => {
-    const fusionPos = frontendToFusionPos(a.x, a.y);
+  const cameras = AGENT_POSITIONS_FT.map((a) => {
+    const pos = feetToFrontendPos(a.x_ft, a.y_ft);
+    const fusionPos = frontendToFusionPos(pos.x, pos.y);
     return {
       id: a.id,
       position: fusionPos,
@@ -60,7 +74,8 @@ function getMockFusionData(now = Date.now()) {
     };
   });
 
-  const targetPos = frontendToFusionPos(TARGET_POSITION.x, TARGET_POSITION.y);
+  const targetPosCm = feetToFrontendPos(TARGET_POSITION_FT.x_ft, TARGET_POSITION_FT.y_ft);
+  const targetPos = frontendToFusionPos(targetPosCm.x, targetPosCm.y);
   const targets = [
     {
       id: 1,

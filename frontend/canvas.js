@@ -78,7 +78,7 @@ function prepareHiDPI(canvas) {
   return ctx;
 }
 
-export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, _unused, wallLayout, paths, wallGrid) {
+export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, _unused, wallLayout, paths, wallGrid, hideCameraCone = false) {
   const ctx = prepareHiDPI(canvas);
   ctx.clearRect(0, 0, WW, WH);
   ctx.fillStyle = "#0a0c18";
@@ -388,7 +388,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.restore();
   }
 
-  // Agents: 60° facing-direction wedge then dot + label
+  // Agents: 60° facing-direction wedge (unless hideCameraCone) then dot + label
   const FOV_WEDGE_RADIUS = 80;  // px — cone emerging from agent showing facing direction
   const FOV_WEDGE_SPAN = Math.PI / 3;  // 60° cone
 
@@ -398,59 +398,61 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const isHl = highlighted === a.id;
     const r = isHl ? 14 : 11;
 
-    // Heading: a.facing (rad) > headingFromNorth (deg from north) > fusion heading > velocity
-    let angleRad;
-    if (a.facing != null && typeof a.facing === "number") {
-      angleRad = a.facing;
-    } else if (a.headingFromNorth != null && typeof a.headingFromNorth === "number") {
-      // Heading = degrees from geographic north. Map top = 174° (south).
-      angleRad = ((a.headingFromNorth - MAP_TOP_BEARING - 90) * Math.PI) / 180;
-    } else if (a.heading != null && typeof a.heading === "number") {
-      angleRad = (a.heading * Math.PI) / 180;
-    } else if (a.vel && (a.vel.vx !== 0 || a.vel.vy !== 0)) {
-      angleRad = Math.atan2(a.vel.vy, a.vel.vx);
-    } else {
-      angleRad = 0;
-    }
-    const startAngle = angleRad - FOV_WEDGE_SPAN / 2;
-    const endAngle = angleRad + FOV_WEDGE_SPAN / 2;
+    if (!hideCameraCone) {
+      // Heading: a.facing (rad) > headingFromNorth (deg from north) > fusion heading > velocity
+      let angleRad;
+      if (a.facing != null && typeof a.facing === "number") {
+        angleRad = a.facing;
+      } else if (a.headingFromNorth != null && typeof a.headingFromNorth === "number") {
+        // Heading = degrees from geographic north. Map top = 174° (south).
+        angleRad = ((a.headingFromNorth - MAP_TOP_BEARING - 90) * Math.PI) / 180;
+      } else if (a.heading != null && typeof a.heading === "number") {
+        angleRad = (a.heading * Math.PI) / 180;
+      } else if (a.vel && (a.vel.vx !== 0 || a.vel.vy !== 0)) {
+        angleRad = Math.atan2(a.vel.vy, a.vel.vx);
+      } else {
+        angleRad = 0;
+      }
+      const startAngle = angleRad - FOV_WEDGE_SPAN / 2;
+      const endAngle = angleRad + FOV_WEDGE_SPAN / 2;
 
-    // 60° facing cone — ombre fill (darker at agent, lighter at edge), no outline
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(ap.x, ap.y);
-    ctx.arc(ap.x, ap.y, FOV_WEDGE_RADIUS, startAngle, endAngle);
-    ctx.closePath();
-    if (color.startsWith("#")) {
-      const hex = color.slice(1);
-      const R = parseInt(hex.slice(0, 2), 16), G = parseInt(hex.slice(2, 4), 16), B = parseInt(hex.slice(4, 6), 16);
-      const grad = ctx.createRadialGradient(ap.x, ap.y, 0, ap.x, ap.y, FOV_WEDGE_RADIUS);
-      grad.addColorStop(0, `rgba(${R},${G},${B},0.55)`);
-      grad.addColorStop(0.5, `rgba(${R},${G},${B},0.3)`);
-      grad.addColorStop(1, `rgba(${R},${G},${B},0.08)`);
-      ctx.fillStyle = grad;
-    } else {
-      const grad = ctx.createRadialGradient(ap.x, ap.y, 0, ap.x, ap.y, FOV_WEDGE_RADIUS);
-      grad.addColorStop(0, "rgba(136,136,136,0.5)");
-      grad.addColorStop(1, "rgba(136,136,136,0.06)");
-      ctx.fillStyle = grad;
-    }
-    ctx.fill();
-    ctx.restore();
-
-    // Radius markers: concentric arcs at intervals within the wedge
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.5;
-    const markerRadii = [FOV_WEDGE_RADIUS / 3, (2 * FOV_WEDGE_RADIUS) / 3, FOV_WEDGE_RADIUS];
-    for (const mr of markerRadii) {
+      // 60° facing cone — ombre fill (darker at agent, lighter at edge), no outline
+      ctx.save();
       ctx.beginPath();
-      ctx.arc(ap.x, ap.y, mr, startAngle, endAngle);
-      ctx.stroke();
+      ctx.moveTo(ap.x, ap.y);
+      ctx.arc(ap.x, ap.y, FOV_WEDGE_RADIUS, startAngle, endAngle);
+      ctx.closePath();
+      if (color.startsWith("#")) {
+        const hex = color.slice(1);
+        const R = parseInt(hex.slice(0, 2), 16), G = parseInt(hex.slice(2, 4), 16), B = parseInt(hex.slice(4, 6), 16);
+        const grad = ctx.createRadialGradient(ap.x, ap.y, 0, ap.x, ap.y, FOV_WEDGE_RADIUS);
+        grad.addColorStop(0, `rgba(${R},${G},${B},0.55)`);
+        grad.addColorStop(0.5, `rgba(${R},${G},${B},0.3)`);
+        grad.addColorStop(1, `rgba(${R},${G},${B},0.08)`);
+        ctx.fillStyle = grad;
+      } else {
+        const grad = ctx.createRadialGradient(ap.x, ap.y, 0, ap.x, ap.y, FOV_WEDGE_RADIUS);
+        grad.addColorStop(0, "rgba(136,136,136,0.5)");
+        grad.addColorStop(1, "rgba(136,136,136,0.06)");
+        ctx.fillStyle = grad;
+      }
+      ctx.fill();
+      ctx.restore();
+
+      // Radius markers: concentric arcs at intervals within the wedge
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.5;
+      const markerRadii = [FOV_WEDGE_RADIUS / 3, (2 * FOV_WEDGE_RADIUS) / 3, FOV_WEDGE_RADIUS];
+      for (const mr of markerRadii) {
+        ctx.beginPath();
+        ctx.arc(ap.x, ap.y, mr, startAngle, endAngle);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
     }
-    ctx.globalAlpha = 1;
-    ctx.restore();
 
     // Agent dot + label
     ctx.save();

@@ -217,7 +217,7 @@ export default function App() {
       }
       s.prevPrimary = { ...res.primary }; s.prevSecondary = { ...res.secondary };
       const canvas = canvasRef.current;
-      if (canvas) drawScene(canvas, agents, targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths);
+      if (canvas) drawScene(canvas, agents, targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths, undefined, isLiveDemo);
       setTick(tickN); setResult(res);
       setUi({ agents: [...agents], targets: [...targets] });
     }
@@ -534,26 +534,6 @@ export default function App() {
 
       {/* ── Main layout: Live Demo = camera on top, map below; else side-by-side ── */}
       <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", maxWidth:"100%", overflow:"auto" }}>
-      {isLiveDemo && (
-        /* Camera view strip (top) */
-        <div style={{ flexShrink:0, display:"flex", gap:8, padding:"0 0 12px 0", borderBottom:`1px solid ${C.border}`, marginBottom:12 }}>
-          {agents.map(agent => {
-            const color = AGENT_COLORS[agent.id] || "#888";
-            const isHl = hl === agent.id;
-            return (
-              <div key={agent.id} style={{ flex:1, minWidth:200 }}>
-                <div style={{ background:C.gradientOmbre, border:`1px solid ${isHl ? color + "99" : C.border}`, borderRadius:8, height:180, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11, boxShadow: isHl ? `0 0 16px ${color}30` : "0 2px 8px rgba(0,0,0,0.2)" }}>
-                  {CAM_STREAM_URLS[agent.id] ? (
-                    <CameraStream agentId={agent.id} streamUrl={CAM_STREAM_URLS[agent.id]} fallback={<span>{agent.id}</span>} />
-                  ) : (
-                    <span>{agent.id}</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
       <div style={{ flex:1, minHeight:0, display:"flex", gap:0, justifyContent:"flex-start", alignItems:"stretch", minWidth:"min-content" }}>
 
         {/* Center column: Live map + Recap (fusion frontend) */}
