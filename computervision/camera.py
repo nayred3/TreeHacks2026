@@ -57,6 +57,11 @@ class FramePacket:
 
 
 class CameraSource:
+    """
+    Unified camera source: local webcam, HTTP MJPEG stream, or file-polling
+    (reads the latest JPEG saved by frame_receiver.py).
+    """
+
     def __init__(self, source: str, camera_id: str, width: int, height: int, target_fps: Optional[int] = None):
         self.camera_id = camera_id
         self.width = width
@@ -66,17 +71,31 @@ class CameraSource:
         self.target_fps = target_fps
         self.is_http = source.startswith("http://") or source.startswith("https://")
 
-        self.cap = self._open_capture()
+        # Detect file-polling mode: source is an existing image file
+        # (e.g. received_frames/phone_1_latest.jpg from frame_receiver.py)
+        self.is_file = (
+            not self.is_http
+            and (os.path.isfile(source) or source.lower().endswith((".jpg", ".jpeg", ".png")))
+        )
 
-        if not self.cap.isOpened():
-            raise RuntimeError(f"Could not open camera/video source: {source}")
+        if self.is_file:
+            self.cap = None
+            self._last_mtime: float = 0.0
+            print(f"[INFO] File-polling source: {source}")
+            if not os.path.isfile(source):
+                print(f"[WARN] File does not exist yet — will wait for frame_receiver to create it")
+        else:
+            self.cap = self._open_capture()
 
-        # For local webcams only: try to set size/fps (HTTP streams ignore these)
-        if not self.is_http:
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-            if target_fps is not None:
-                self.cap.set(cv2.CAP_PROP_FPS, int(target_fps))
+            if not self.cap.isOpened():
+                raise RuntimeError(f"Could not open camera/video source: {source}")
+
+            # For local webcams only: try to set size/fps (HTTP streams ignore these)
+            if not self.is_http:
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                if target_fps is not None:
+                    self.cap.set(cv2.CAP_PROP_FPS, int(target_fps))
 
     def _open_capture(self) -> cv2.VideoCapture:
         if self.is_http:
@@ -100,7 +119,34 @@ class CameraSource:
         time.sleep(0.2)
         self.cap = self._open_capture()
 
+    def _read_file(self) -> Optional[FramePacket]:
+        """Poll a JPEG/PNG file for new frames (written by frame_receiver.py)."""
+        if not os.path.isfile(self.source):
+            return None
+        try:
+            mtime = os.path.getmtime(self.source)
+        except OSError:
+            return None
+        # Only return a new frame when the file has actually been updated
+        if mtime <= self._last_mtime:
+            return None
+        self._last_mtime = mtime
+        try:
+            frame = cv2.imread(self.source)
+        except Exception:
+            return None
+        if frame is None:
+            return None
+        ts = time.time()
+        frame = cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_AREA)
+        pkt = FramePacket(self.camera_id, frame, ts, self._frame_index, self.width, self.height)
+        self._frame_index += 1
+        return pkt
+
     def read(self) -> Optional[FramePacket]:
+        if self.is_file:
+            return self._read_file()
+
         ok, frame = self.cap.read()
         ts = time.time()
 
@@ -125,10 +171,11 @@ class CameraSource:
         return pkt
 
     def release(self) -> None:
-        try:
-            self.cap.release()
-        except Exception:
-            pass
+        if self.cap is not None:
+            try:
+                self.cap.release()
+            except Exception:
+                pass
 
 
 def parse_args() -> argparse.Namespace:
@@ -171,6 +218,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--udp-port", type=int, default=5055, help="Fusion receiver UDP port")
     p.add_argument("--camera-info-period", type=float, default=1.0,
                    help="Seconds between repeating camera_info messages")
+
+    # ---- Phone position receiver (live position from iPhone) ----
+    p.add_argument("--position-udp-port", type=int, default=0,
+                   help="UDP port to listen for camera_state position updates from iPhone "
+                        "(0 = disabled, use static --cam-x/--cam-y/--yaw-deg). "
+                        "Matches the format sent to position_receiver.py.")
 
     return p.parse_args()
 
@@ -524,10 +577,67 @@ def make_tracks_msg(pkt: FramePacket, tracks: List[Dict[str, Any]]) -> Dict[str,
 # ---------------------------------------------------
 
 
+class PositionListener:
+    """
+    Background thread that receives live camera_state UDP packets from
+    the iPhone (same format as position_receiver.py) and updates the
+    camera pose on the args namespace so camera_info messages reflect
+    the phone's real-time position.
+    """
+    def __init__(self, args: argparse.Namespace, port: int):
+        self._args = args
+        self._port = port
+        self._lock = __import__("threading").Lock()
+        self._count = 0
+
+    def start(self) -> None:
+        import threading
+        t = threading.Thread(target=self._listen, daemon=True)
+        t.start()
+        print(f"[POS] Listening for position updates on UDP port {self._port}")
+
+    def _listen(self) -> None:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # macOS supports SO_REUSEPORT — allows position_receiver.py to run too
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except (AttributeError, OSError):
+            pass
+        sock.bind(("0.0.0.0", self._port))
+        sock.settimeout(2.0)
+        while True:
+            try:
+                data, addr = sock.recvfrom(65536)
+                msg = json.loads(data.decode("utf-8"))
+                if msg.get("type") == "camera_state":
+                    pos = msg.get("position", [0, 0])
+                    heading = msg.get("heading", 0)
+                    with self._lock:
+                        self._args.cam_x = float(pos[0])
+                        self._args.cam_y = float(pos[1])
+                        # NOTE: yaw_deg is NOT overridden here — the manual
+                        # --yaw-deg value is the source of truth because
+                        # ARKit's indoor compass heading is unreliable and
+                        # differs between devices.
+                        self._count += 1
+                    if self._count == 1:
+                        print(f"[POS] First position update: ({pos[0]:.2f}, {pos[1]:.2f}) phone_heading={heading:.1f}° (ignored, using --yaw-deg={self._args.yaw_deg:.1f}°)")
+            except socket.timeout:
+                continue
+            except Exception:
+                continue
+
+
 def main() -> None:
     args = parse_args()
     device = pick_device()
     print(f"[INFO] Using device: {device}")
+
+    # Start live position listener if configured
+    if args.position_udp_port > 0:
+        pos_listener = PositionListener(args, args.position_udp_port)
+        pos_listener.start()
 
     emitter = JsonEmitter(args.out_mode, args.udp_host, args.udp_port)
 
@@ -563,13 +673,25 @@ def main() -> None:
         emitter.send(make_camera_info(args))
     next_caminfo_time = time.time() + max(0.1, args.camera_info_period)
 
+    _no_frame_warned = False
     print("[INFO] Running. Quit with 'q' in the window or Ctrl+C in terminal.")
     try:
         while True:
             pkt = cam.read()
             if pkt is None:
                 time.sleep(0.01)
+                # Keep the window responsive while waiting for frames
+                if args.show:
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord("q"):
+                        break
+                # One-time hint for file-polling mode
+                if cam.is_file and not _no_frame_warned:
+                    _no_frame_warned = True
+                    print("[INFO] Waiting for new frames from frame_receiver... "
+                          f"(watching {cam.source})")
                 continue
+            _no_frame_warned = False
 
             now = time.time()
 
