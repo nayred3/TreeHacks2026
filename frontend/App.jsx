@@ -190,8 +190,8 @@ export default function App() {
 
     function runLiveDemo1Script(s, dtSec) {
       const script = liveDemo1ScriptRef.current;
-      const bob = s.agents.find(a => a.id === "Bob");
-      const alice = s.agents.find(a => a.id === "Alice");
+      const bob = s.agents.find(a => a.id === "Logan");
+      const alice = s.agents.find(a => a.id === "Justin");
       if (!bob || !alice) return;
 
       if (script.phase === 0) {
