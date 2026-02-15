@@ -357,9 +357,9 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.restore();
   }
 
-  // Agents: quarter-circle FOV wedge then dot + label
+  // Agents: 60° facing-direction wedge then dot + label
   const FOV_WEDGE_RADIUS = 48;  // px
-  const FOV_WEDGE_SPAN = Math.PI / 2;  // 90° quarter circle
+  const FOV_WEDGE_SPAN = Math.PI / 3;  // 60° cone showing facing direction
 
   for (const a of agents) {
     const ap = toPx(a.position);
