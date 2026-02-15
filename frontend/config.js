@@ -34,13 +34,13 @@ export const ROOM_BOUNDS = {
 };
 
 export const AGENT_COLORS = {
-  Alice: "#00f5d4",
-  Bob: "#fee440",
-  Charlie: "#f15bb5",
-  Diana: "#9b5de5",
+  Alice: "#38bdf8",
+  Bob: "#fbbf24",
+  Charlie: "#a78bfa",
+  Diana: "#f472b6",
 };
 
-export const TARGET_COLOR = "#ff4d4d";
+export const TARGET_COLOR = "#f87171";
 export const REASSIGN_THRESHOLD = 250;  // cm
 export const STALE_TTL = 10000;
 

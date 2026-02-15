@@ -80,14 +80,14 @@ function prepareHiDPI(canvas) {
 export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, _unused, wallLayout, paths, wallGrid) {
   const ctx = prepareHiDPI(canvas);
   ctx.clearRect(0, 0, WW, WH);
-  ctx.fillStyle = "#05080e";
+  ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, WW, WH);
 
   // Wall overlay: preset uses wallLayout (segments + doors), schematic uses raw wallGrid (light=wall, black=empty)
   if (wallLayout) {
     ctx.save();
     ctx.lineCap = "round";
-    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.strokeStyle = "rgba(148,163,184,0.5)";
     ctx.lineWidth = 2.4;
 
     const doors = wallLayout.doors || [];
@@ -156,7 +156,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
   } else if (wallGrid?.length) {
     // Schematic: draw each wall cell as a filled rect (light pixels = walls)
     ctx.save();
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.fillStyle = "rgba(148,163,184,0.5)";
     const rows = wallGrid.length;
     const cols = wallGrid[0]?.length ?? 0;
     for (let r = 0; r < rows; r++) {
@@ -170,7 +170,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
   }
 
   // Grid
-  ctx.strokeStyle = "rgba(255,255,255,0.03)";
+  ctx.strokeStyle = "rgba(148,163,184,0.15)";
   ctx.lineWidth = 1;
   for (let x = 0; x < WW; x += 40) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WH); ctx.stroke();
@@ -218,7 +218,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const mp = pathMidpoint(tp, ap, paths, proxId, t.id);
     ctx.globalAlpha = 0.6;
     ctx.fillStyle = color;
-    ctx.font = "9px 'JetBrains Mono',monospace";
+    ctx.font = "9px 'Inter','Segoe UI',system-ui,sans-serif";
     ctx.fillText(`near · ${euclidean(t.position, a.position).toFixed(0)}cm`, mp.x + 3, mp.y + 14);
     ctx.restore();
   }
@@ -242,7 +242,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const mp2 = pathMidpoint(tp, ap, paths, aId, t.id);
     ctx.globalAlpha = isHl ? 0.95 : 0.45;
     ctx.fillStyle = color;
-    ctx.font = "9px 'JetBrains Mono',monospace";
+    ctx.font = "9px 'Inter','Segoe UI',system-ui,sans-serif";
     ctx.fillText(`P2·${d.toFixed(0)}cm`, mp2.x + 3, mp2.y + 10);
     ctx.restore();
   }
@@ -266,7 +266,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const mp3 = pathMidpoint(tp, ap, paths, aId, t.id);
     ctx.globalAlpha = isHl ? 0.8 : 0.35;
     ctx.fillStyle = color;
-    ctx.font = "9px 'JetBrains Mono',monospace";
+    ctx.font = "9px 'Inter','Segoe UI',system-ui,sans-serif";
     ctx.fillText(`P3·${d.toFixed(0)}cm`, mp3.x + 3, mp3.y + 18);
     ctx.restore();
   }
@@ -292,7 +292,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const mp1 = pathMidpoint(tp, ap, paths, aId, t.id);
     ctx.globalAlpha = isHl ? 1 : 0.85;
     ctx.fillStyle = color;
-    ctx.font = "bold 10px 'JetBrains Mono',monospace";
+    ctx.font = "bold 10px 'Inter','Segoe UI',system-ui,sans-serif";
     ctx.fillText(`P1·${d.toFixed(0)}cm`, mp1.x + 3, mp1.y - 4);
     ctx.restore();
   }
@@ -320,14 +320,14 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     // Main dot
     ctx.globalAlpha = alpha;
     ctx.beginPath(); ctx.arc(tp.x, tp.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = hasPrim ? TARGET_COLOR : hasSec ? "#e07030" : hasTer ? "#b8783a" : "#601818";
+    ctx.fillStyle = hasPrim ? TARGET_COLOR : hasSec ? "#fbbf24" : hasTer ? "#fb923c" : "rgba(248,113,113,0.6)";
     ctx.fill();
-    ctx.strokeStyle = isHl ? "#fff" : "rgba(255,255,255,0.55)";
+    ctx.strokeStyle = isHl ? "#f1f5f9" : "rgba(148,163,184,0.5)";
     ctx.lineWidth = isHl ? 2 : 1.2;
     ctx.stroke();
 
     // Crosshair
-    ctx.strokeStyle = "rgba(255,255,255,0.8)";
+    ctx.strokeStyle = "rgba(148,163,184,0.7)";
     ctx.lineWidth = 1.5;
     [-1, 1].forEach((s) => {
       ctx.beginPath(); ctx.moveTo(tp.x + s * 15, tp.y); ctx.lineTo(tp.x + s * (r + 1), tp.y); ctx.stroke();
@@ -336,14 +336,14 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
 
     // Label
     ctx.fillStyle = "#fff";
-    ctx.font = `bold ${isHl ? 13 : 11}px 'JetBrains Mono',monospace`;
+    ctx.font = `bold ${isHl ? 13 : 11}px 'Inter','Segoe UI',system-ui,sans-serif`;
     ctx.fillText(`T${t.id}`, tp.x + r + 5, tp.y - 3);
 
     // Status badge
     const badge = hasPrim ? "P1" : hasSec ? "P2" : hasTer ? "P3" : "!!";
     const badgeCol = hasPrim ? "#4ade80" : hasSec ? "#fee440" : hasTer ? "#ff9f43" : "#ff4d4d";
     ctx.fillStyle = "rgba(0,0,0,0.75)"; ctx.fillRect(tp.x + r + 3, tp.y + 5, 20, 12);
-    ctx.fillStyle = badgeCol; ctx.font = "bold 9px 'JetBrains Mono',monospace";
+    ctx.fillStyle = badgeCol; ctx.font = "bold 9px 'Inter','Segoe UI',system-ui,sans-serif";
     ctx.fillText(badge, tp.x + r + 5, tp.y + 15);
 
     // Confidence bar
@@ -365,11 +365,11 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.fillStyle = color; ctx.fill();
     if (isHl) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke(); }
     ctx.shadowBlur = 0;
-    ctx.fillStyle = "#000"; ctx.font = `bold ${isHl ? 12 : 10}px 'JetBrains Mono',monospace`;
+    ctx.fillStyle = "#000"; ctx.font = `bold ${isHl ? 12 : 10}px 'Inter','Segoe UI',system-ui,sans-serif`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(a.id[0], ap.x, ap.y);
     ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-    ctx.fillStyle = color; ctx.font = `bold ${isHl ? 13 : 11}px 'JetBrains Mono',monospace`;
+    ctx.fillStyle = color; ctx.font = `bold ${isHl ? 13 : 11}px 'Inter','Segoe UI',system-ui,sans-serif`;
     ctx.fillText(a.id, ap.x + r + 5, ap.y - 4);
     ctx.restore();
   }

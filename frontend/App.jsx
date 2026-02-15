@@ -119,10 +119,10 @@ export default function App() {
       if (paused || now - lastT < 50) return;
       lastT = now; tickN++;
       const s = stateRef.current;
+      s.agents = s.agents.map(a => { const r = constrainedWalk(a.position, a.vel, CM_PER_TICK); return { ...a, position: r.pos, vel: r.vel }; });
       if (!frozen) {
-        s.agents = s.agents.map(a => { const r = constrainedWalk(a.position, a.vel, CM_PER_TICK); return { ...a, position: r.pos, vel: r.vel }; });
+        s.targets = s.targets.map(t => { const r = constrainedWalk(t.position, t.vel, CM_PER_TICK); return { ...t, position: r.pos, vel: r.vel, lastSeen: Date.now() }; });
       }
-      s.targets = s.targets.map(t => { const r = constrainedWalk(t.position, t.vel, CM_PER_TICK); return { ...t, position: r.pos, vel: r.vel, lastSeen: Date.now() }; });
       const res = runPriorityAssignment(s.agents, s.targets, s.prevPrimary, s.prevSecondary, wallGrid);
       for (const [tid, aid] of Object.entries(res.primary)) {
         if (s.prevPrimary[tid] && s.prevPrimary[tid] !== aid) {
@@ -246,10 +246,10 @@ export default function App() {
   );
 
   const C = {
-    bg:"#05080e", panel:"#080c14", border:"#141e2e",
-    text:"#b0c8d8", dim:"#2e4858", bright:"#e4f0f8",
-    teal:"#00f5d4", yellow:"#fee440", pink:"#f15bb5",
-    purple:"#9b5de5", green:"#4ade80", red:"#ff4d4d", orange:"#ff9f43",
+    bg:"#0c1222", panel:"#141c2e", border:"#2a3a5c",
+    text:"#e8ecf4", dim:"#94a3b8", bright:"#f1f5f9",
+    cyan:"#38bdf8", gold:"#fbbf24", teal:"#2dd4bf",
+    green:"#34d399", red:"#f87171", orange:"#fb923c", yellow:"#fbbf24", purple:"#a78bfa",
   };
 
   const TabBtn = ({ id, label }) => (
@@ -269,7 +269,7 @@ export default function App() {
       border: `1px solid ${tab === id ? C.border : "transparent"}`,
       borderBottom: tab === id ? `1px solid ${C.panel}` : `1px solid ${C.border}`,
       color: tab === id ? C.bright : C.dim, padding: "5px 12px", cursor: "pointer",
-      fontSize: 9, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.08em",
+      fontSize: 11, fontFamily: "inherit", letterSpacing: "0.04em",
       borderRadius: "4px 4px 0 0", marginBottom: -1, transition: "all 0.15s",
       position: "relative", zIndex: 8, pointerEvents: "auto",
     }}
@@ -328,51 +328,52 @@ export default function App() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily:"'JetBrains Mono','Courier New',monospace", background:C.bg, minHeight:"100vh", display:"flex", flexDirection:"column", color:C.text, padding:14, boxSizing:"border-box" }}>
+    <div style={{ fontFamily:"'Inter','Segoe UI',system-ui,-apple-system,sans-serif", background:C.bg, minHeight:"100vh", display:"flex", flexDirection:"column", color:C.text, padding:14, boxSizing:"border-box" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         * { box-sizing:border-box; }
-        ::-webkit-scrollbar { width:3px; height:3px; }
-        ::-webkit-scrollbar-thumb { background:#1a2a3a; border-radius:2px; }
+        ::-webkit-scrollbar { width:6px; height:6px; }
+        ::-webkit-scrollbar-track { background:#141c2e; }
+        ::-webkit-scrollbar-thumb { background:#3b4a6b; border-radius:4px; }
         @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
         @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.45} }
-        button:hover { filter:brightness(1.18); }
+        button:hover { filter:brightness(1.1); }
       `}</style>
 
       {/* ── Header ── */}
       <div style={{ flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
         <div>
-          <div style={{ fontSize:15, fontWeight:700, letterSpacing:"0.15em", color:C.teal }}>PRIORITY ASSIGNMENT ENGINE</div>
-          <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em", marginTop:2 }}>DISTANCE-BASED PRIORITY</div>
+          <div style={{ fontSize:16, fontWeight:600, letterSpacing:"0.05em", color:C.cyan }}>PRIORITY ASSIGNMENT ENGINE</div>
+          <div style={{ fontSize:12, color:C.dim, letterSpacing:"0.04em", marginTop:2 }}>DISTANCE-BASED PRIORITY</div>
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
           {(wallLayout || wallGrid) && !isLiveDemo && (
             <>
               {[
-                { label: paused ? "▶ RESUME" : "⏸ PAUSE",  onClick: () => setPaused(p=>!p), active: paused, ac: C.green },
-                { label: frozen ? "▶ UNFREEZE" : "⬛ FREEZE", onClick: () => { setFrozen(f=>!f); addEvent(frozen?"▶ Moving":"⬛ Frozen","system"); }, active: frozen, ac: C.purple },
-                { label: "◎ ZONES", onClick: () => setZones(z=>!z), active: showZones, ac: C.purple },
+                { label: paused ? "RESUME" : "PAUSE",  onClick: () => setPaused(p=>!p), active: paused, ac: C.green },
+                { label: frozen ? "MOVING TARGETS" : "FREEZE TARGETS", onClick: () => { setFrozen(f=>!f); addEvent(frozen?"▶ Moving":"⬛ Frozen","system"); }, active: frozen, ac: C.cyan },
+                { label: "◎ ZONES", onClick: () => setZones(z=>!z), active: showZones, ac: C.cyan },
               ].map(b => (
                 <button key={b.label} onClick={b.onClick} style={{
-                  background: b.active ? "#120e1e" : "#0e1620",
-                  border: `1px solid ${b.active ? b.ac + "80" : C.border}`,
+                  background: b.active ? "rgba(56,189,248,0.15)" : C.panel,
+                  border: `1px solid ${b.active ? b.ac : C.border}`,
                   color: b.active ? b.ac : C.dim,
-                  padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit",
+                  padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
                 }}>{b.label}</button>
               ))}
-              <button onClick={spawn} style={{ background:"#180e0e", border:`1px solid #4a1010`, color:"#ff6b6b", padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊕ SPAWN</button>
-              <button onClick={neutralise} style={{ background:"#0a160e", border:`1px solid #1a4020`, color:C.green, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊘ NEUTRALISE</button>
-              <button onClick={scatter} style={{ background:"#12100a", border:`1px solid #3a3010`, color:C.yellow, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⚡ SCATTER</button>
+              <button onClick={spawn} style={{ background:"#2d0a0a", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>⊕ SPAWN</button>
+              <button onClick={neutralise} style={{ background:"#0d2d14", border:`1px solid ${C.green}60`, color:C.green, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>⊘ NEUTRALISE</button>
+              <button onClick={scatter} style={{ background:"#2d2608", border:`1px solid ${C.gold}60`, color:C.gold, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>⚡ SCATTER</button>
             </>
           )}
           <button onClick={() => addPresetWalls("dual-vertical")} style={{
-            background:"#1a1525", border:`1px solid ${C.purple}80`, color:C.purple,
-            padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit",
+            background:C.panel, border:`1px solid ${C.cyan}`, color:C.cyan,
+            padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
           }}>LIVE DEMO</button>
           <div ref={wallsDropdownRef} style={{ position:"relative" }}>
             <button onClick={() => setWallsDropdownOpen(o => !o)} style={{
-              background: wallsDropdownOpen ? "#1a1f2e" : "#13161f", border:`1px solid ${C.orange}80`, color:C.orange,
-              padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit",
+              background: wallsDropdownOpen ? "rgba(251,191,36,0.12)" : C.panel, border:`1px solid ${C.gold}`, color:C.gold,
+              padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
               display:"flex", alignItems:"center", gap:6,
             }}>
               SAMPLE SIMULATIONS ▾
@@ -380,12 +381,12 @@ export default function App() {
             {wallsDropdownOpen && (
               <div style={{
                 position:"absolute", top:"100%", left:0, marginTop:4, background:C.panel, border:`1px solid ${C.border}`,
-                borderRadius:4, boxShadow:"0 4px 12px rgba(0,0,0,0.4)", minWidth:160, zIndex:20,
+                borderRadius:6, boxShadow:"0 4px 12px rgba(0,0,0,0.4)", minWidth:160, zIndex:20,
               }}>
                 {WALL_LAYOUT_OPTIONS.map(({ id, label }) => (
                   <button key={id} onClick={() => addPresetWalls(id)} style={{
                     display:"block", width:"100%", textAlign:"left", padding:"8px 12px", border:"none",
-                    background:"transparent", color:C.text, cursor:"pointer", fontSize:10, fontFamily:"inherit",
+                    background:"transparent", color:C.text, cursor:"pointer", fontSize:11, fontFamily:"inherit",
                   }} onMouseEnter={e => { e.target.style.background = C.border; }} onMouseLeave={e => { e.target.style.background = "transparent"; }}>
                     {label}
                   </button>
@@ -395,42 +396,42 @@ export default function App() {
           </div>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleSchematicUpload} style={{ display:"none" }}/>
           <button onClick={() => fileInputRef.current?.click()} style={{
-            background:"linear-gradient(135deg, #0d1c2d, #15324d)",
-            border:`1px solid ${C.teal}`,
-            color:"#c8fff5",
+            background:"linear-gradient(135deg, rgba(56,189,248,0.15), rgba(45,212,191,0.12))",
+            border:`1px solid ${C.cyan}`,
+            color:C.cyan,
             padding:"8px 16px",
-            borderRadius:5,
+                  borderRadius:8,
             cursor:"pointer",
             fontSize:11,
-            fontWeight:700,
-            letterSpacing:"0.07em",
-            boxShadow:`0 0 16px ${C.teal}55`,
+            fontWeight:600,
+            letterSpacing:"0.05em",
+            boxShadow:`0 0 12px ${C.cyan}40`,
             fontFamily:"inherit",
           }}> LOAD SCHEMATIC</button>
-          {(wallLayout || wallGrid) && <button onClick={clearSchematic} style={{ background:"#180e0e", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
+          {(wallLayout || wallGrid) && <button onClick={clearSchematic} style={{ background:"#2d0a0a", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
         </div>
       </div>
 
       {/* ── Line Legend ── */}
-      <div style={{ flexShrink:0, display:"flex", gap:14, marginBottom:10, padding:"7px 12px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, flexWrap:"wrap", alignItems:"center" }}>
-        <span style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em" }}>LINE KEY:</span>
+      <div style={{ flexShrink:0, display:"flex", gap:14, marginBottom:10, padding:"10px 14px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:8, flexWrap:"wrap", alignItems:"center" }}>
+        <span style={{ fontSize:11, color:C.dim, letterSpacing:"0.05em" }}>LINE KEY:</span>
           {[
-            { stroke:"#aaa", dash:"", w:2.5,  label:"P1 Primary Target" },
-            { stroke:"#aaa", dash:"5,4", w:1.5, label:"P2 Secondary Target" },
-            { stroke:"#aaa", dash:"2,4", w:1.2, label:"P3 Tertiary Target" },
-            { stroke:"#aaa", dash:"2,8", w:1.0, label:"Proximity - shown on hover" },
+            { stroke:C.text, dash:"", w:2.5,  label:"P1 Primary Target" },
+            { stroke:C.text, dash:"5,4", w:1.5, label:"P2 Secondary Target" },
+            { stroke:C.text, dash:"2,4", w:1.2, label:"P3 Tertiary Target" },
+            { stroke:C.dim, dash:"2,8", w:1.0, label:"Proximity - shown on hover" },
           ].map(({ stroke, dash, w, label }) => (
           <div key={label} style={{ display:"flex", alignItems:"center", gap:6 }}>
             <svg width="30" height="8" style={{ flexShrink:0 }}>
               <line x1="0" y1="4" x2="30" y2="4" stroke={stroke} strokeWidth={w} strokeDasharray={dash} opacity={dash==="2,8"?"0.4":"0.85"}/>
             </svg>
-            <span style={{ fontSize:9, color:C.text }}>{label}</span>
+            <span style={{ fontSize:11, color:C.text }}>{label}</span>
           </div>
         ))}
         <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
-          {[{ bg:TARGET_COLOR, label:"P1 assigned" }, { bg:"#e07030", label:"P2 assigned" }, { bg:"#b8783a", label:"P3 assigned" }, { bg:"#601818", label:"Unassigned" }].map(x=>(
+          {[{ bg:C.green, label:"P1 assigned" }, { bg:C.gold, label:"P2 assigned" }, { bg:C.orange, label:"P3 assigned" }, { bg:C.red+"88", label:"Unassigned" }].map(x=>(
             <div key={x.label} style={{ display:"flex", alignItems:"center", gap:4 }}>
-              <div style={{ width:9, height:9, borderRadius:"50%", background:x.bg }}/><span style={{ fontSize:9, color:C.text }}>{x.label}</span>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:x.bg }}/><span style={{ fontSize:11, color:C.text }}>{x.label}</span>
             </div>
           ))}
         </div>
@@ -447,23 +448,32 @@ export default function App() {
             const isHl = hl === agent.id;
             const prList = result.agentPriorities[agent.id] || [];
             const primEntry = prList.find(e => e.role === "primary");
+            const secEntry = prList.find(e => e.role === "secondary");
             return (
               <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
-                <div style={{ background:"#0d2030", border:`1px solid ${C.border}`, borderRadius:6, height:240, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:10 }}>
+                <div style={{ background:"#1a2744", border:`1px solid ${C.border}`, borderRadius:8, height:240, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11 }}>
                   {agent.id} Live Camera View
                 </div>
                 <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
-                  style={{ marginTop:6, padding:8, background:isHl?"#0e1825":C.panel, border:`1px solid ${isHl?color:C.border}`, borderRadius:5, cursor:"pointer" }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
-                    <div style={{ width:8, height:8, borderRadius:"50%", background:color }}/>
-                    <span style={{ color, fontWeight:700, fontSize:11 }}>{agent.id}</span>
+                  style={{ marginTop:6, padding:12, background:"#0f1629", border:`1px solid ${isHl?color:C.border}`, borderRadius:8, cursor:"pointer" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", gap:16 }}>
+                    <div>
+                      <div style={{ fontSize:11, color:C.text, marginBottom:2 }}>{agent.id}</div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Position</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)})</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Primary</div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Target T${primEntry.targetId}` : "—"}</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Distance: ${primEntry.distance.toFixed(0)} cm` : ""}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Secondary</div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Target T${secEntry.targetId}` : "—"}</div>
+                    </div>
                   </div>
-                  <div style={{ fontSize:8, color:C.dim, marginBottom:4 }}>{agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)} cm</div>
-                  <div style={{ fontSize:9 }}>
-                    {primEntry ? <span style={{ color:C.green }}>P1 T{primEntry.targetId} {primEntry.distance.toFixed(0)}cm</span> : <span style={{ color:C.dim }}>P1 —</span>}
-                  </div>
-                  <div style={{ fontSize:9, color:C.dim }}>P2 — · P3 —</div>
-                  <div style={{ fontSize:8, color:C.green, marginTop:4 }}>ASSIGNED</div>
                 </div>
               </div>
             );
@@ -477,16 +487,16 @@ export default function App() {
           <div>
             <canvas ref={canvasRef} onClick={onCanvasClick}
               style={{ display:"block", width:WW, height:WH, border:`1px solid ${C.border}`, borderRadius:6, cursor:"crosshair" }}/>
-            <div style={{ display:"flex", gap:10, marginTop:8, padding:"7px 10px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, flexWrap:"wrap" }}>
-              <span style={{ fontSize:9, color:C.dim }}>CLICK TO HIGHLIGHT:</span>
+            <div style={{ display:"flex", gap:10, marginTop:8, padding:"10px 12px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:8, flexWrap:"wrap" }}>
+              <span style={{ fontSize:11, color:C.dim }}>CLICK TO HIGHLIGHT:</span>
               {agents.map(a => (
                 <div key={a.id} onClick={() => setHL(h => h === a.id ? null : a.id)}
                   style={{ display:"flex", alignItems:"center", gap:5, cursor:"pointer", opacity:hl && hl!==a.id?0.35:1, transition:"opacity 0.2s" }}>
                   <div style={{ width:8, height:8, borderRadius:"50%", background:AGENT_COLORS[a.id], boxShadow:`0 0 6px ${AGENT_COLORS[a.id]}` }}/>
-                  <span style={{ fontSize:9, color:hl===a.id?AGENT_COLORS[a.id]:C.text }}>{a.id}</span>
+                  <span style={{ fontSize:11, fontWeight:hl===a.id?600:400, color:hl===a.id?AGENT_COLORS[a.id]:C.text }}>{a.id}</span>
                 </div>
               ))}
-              <span style={{ fontSize:9, color:C.dim, marginLeft:"auto" }}>or click target crosshair</span>
+              <span style={{ fontSize:11, color:C.dim, marginLeft:"auto" }}>or click target crosshair</span>
             </div>
           </div>
 
@@ -494,23 +504,23 @@ export default function App() {
           <div style={{ width:WW + 24, display:"flex", flexDirection:"column", gap:0 }}>
 
           {/* Summary row */}
-          <div style={{ display:"flex", background:C.panel, border:`1px solid ${C.border}`, borderRadius:"6px 6px 0 0", borderBottom:"none" }}>
+          <div style={{ display:"flex", background:C.panel, border:`1px solid ${C.border}`, borderRadius:"8px 8px 0 0", borderBottom:"none" }}>
             {[
               { label:"P1 ASSIGNED",  val:Object.keys(result.primary).length,   col:C.green },
-              { label:"P2 COVERAGE",  val:Object.keys(result.secondary).length,  col:C.yellow },
+              { label:"P2 COVERAGE",  val:Object.keys(result.secondary).length,  col:C.gold },
               { label:"P3 COVERAGE",  val:Object.keys(result.tertiary).length,  col:C.orange },
               { label:"UNASSIGNED",   val:unassigned.length,                     col:unassigned.length?C.red:C.dim },
               { label:"TOTAL TARGETS",val:targets.length,                        col:C.teal },
             ].map(s => (
               <div key={s.label} style={{ flex:1, textAlign:"center", padding:"9px 4px", borderRight:`1px solid ${C.border}` }}>
-                <div style={{ fontSize:20, fontWeight:700, color:s.col, lineHeight:1 }}>{s.val}</div>
-                <div style={{ fontSize:7, color:C.dim, letterSpacing:"0.07em", marginTop:2 }}>{s.label}</div>
+                <div style={{ fontSize:18, fontWeight:700, color:s.col, lineHeight:1 }}>{s.val}</div>
+                <div style={{ fontSize:10, color:C.dim, letterSpacing:"0.05em", marginTop:2 }}>{s.label}</div>
               </div>
             ))}
           </div>
 
           {/* Tabs */}
-          <div style={{ borderBottom:`1px solid ${C.border}`, display:"flex", paddingLeft:8, background:"#060a10", position:"relative", zIndex:7, pointerEvents:"auto" }}>
+          <div style={{ borderBottom:`1px solid ${C.border}`, display:"flex", paddingLeft:8, background:C.bg, position:"relative", zIndex:7, pointerEvents:"auto" }}>
             <TabBtn id="priority" label="PRIORITIES"/>
             <TabBtn id="matrix"   label="MATRIX"/>
             <TabBtn id="json"     label="JSON"/>
@@ -518,15 +528,14 @@ export default function App() {
           </div>
 
           {/* Tab body */}
-          <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderTop:"none", borderRadius:"0 0 6px 6px", padding:12, minHeight:200, maxHeight:260, overflow:"auto", position:"relative", zIndex:1 }}>
+          <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderTop:"none", borderRadius:"0 0 8px 8px", padding:12, minHeight:200, maxHeight:260, overflow:"auto", position:"relative", zIndex:1 }}>
 
             {/* PRIORITY TAB */}
             {tab === "priority" && (
               <div>
-                <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em", marginBottom:10 }}>
-                  Each agent's targets ranked by distance. P1 = primary task. P2 = next task. P3 = overflow/backlog task.
-                  Extra targets are queued by closest-agent assignment with tie-break on earliest task completion.
-                </div>
+                <div style={{ fontSize:11, color:C.dim, letterSpacing:"0.04em", marginBottom:10 }}>
+                  P1 = primary target. P2 = next target. P3 = overflow target.
+                  </div>
                 {agents.map(agent => {
                   const color  = AGENT_COLORS[agent.id] || "#888";
                   const isHl   = hl === agent.id;
@@ -535,19 +544,19 @@ export default function App() {
                     <div key={agent.id} onClick={() => setHL(h => h === agent.id ? null : agent.id)}
                       style={{ marginBottom:8, padding:"8px 10px", borderRadius:5, cursor:"pointer",
                         border:`1px solid ${isHl?color:C.border}`,
-                        background: isHl?"#0a1422":"#060a10",
+                        background: isHl?"rgba(56,189,248,0.1)":C.bg,
                         boxShadow: isHl?`0 0 10px ${color}25`:"none", transition:"all 0.2s" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
                         <div style={{ width:9, height:9, borderRadius:"50%", background:color, boxShadow:`0 0 6px ${color}` }}/>
-                        <span style={{ color, fontWeight:700, fontSize:11 }}>{agent.id}</span>
-                        <span style={{ fontSize:8, color:C.dim, marginLeft:4 }}>pos ({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)}) cm</span>
+                        <span style={{ color, fontWeight:600, fontSize:12 }}>{agent.id}</span>
+                        <span style={{ fontSize:11, color:C.dim, marginLeft:4 }}>pos ({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)}) cm</span>
                         <span style={{ marginLeft:"auto", display:"flex", gap:4 }}>
-                          {prList.find(e=>e.role==="primary") && <span style={{ fontSize:8, color:C.green, border:`1px solid ${C.green}50`, borderRadius:3, padding:"1px 5px" }}>P1 ✓</span>}
-                          {prList.find(e=>e.role==="secondary") && <span style={{ fontSize:8, color:C.yellow, border:`1px solid ${C.yellow}50`, borderRadius:3, padding:"1px 5px" }}>P2 ~</span>}
-                          {prList.find(e=>e.role==="tertiary") && <span style={{ fontSize:8, color:C.orange, border:`1px solid ${C.orange}50`, borderRadius:3, padding:"1px 5px" }}>P3 ·</span>}
+                          {prList.find(e=>e.role==="primary") && <span style={{ fontSize:10, fontWeight:600, color:C.green, border:`1px solid ${C.green}50`, borderRadius:3, padding:"2px 6px" }}>P1 ✓</span>}
+                          {prList.find(e=>e.role==="secondary") && <span style={{ fontSize:10, fontWeight:600, color:C.gold, border:`1px solid ${C.gold}50`, borderRadius:3, padding:"2px 6px" }}>P2 ~</span>}
+                          {prList.find(e=>e.role==="tertiary") && <span style={{ fontSize:10, fontWeight:600, color:C.orange, border:`1px solid ${C.orange}50`, borderRadius:3, padding:"2px 6px" }}>P3 ·</span>}
                         </span>
                       </div>
-                      {prList.length === 0 ? <div style={{ fontSize:9, color:C.dim }}>No targets</div>
+                      {prList.length === 0 ? <div style={{ fontSize:11, color:C.dim }}>No targets</div>
                         : prList.map(({ targetId, distance, role }) => {
                           const isAssigned = role === "primary" || role === "secondary" || role === "tertiary";
                           return (
@@ -556,25 +565,25 @@ export default function App() {
                             borderBottom:`1px solid ${C.border}`,
                             opacity: isAssigned ? 1 : 0.35,
                           }}>
-                            <span style={{ background: isAssigned ? TARGET_COLOR : "#444", color: isAssigned ? "#000" : "#999", fontSize:8, fontWeight:700, padding:"1px 5px", borderRadius:2 }}>T{targetId}</span>
-                            <div style={{ flex:1, height:4, background:"#0a1018", borderRadius:2, overflow:"hidden" }}>
+                            <span style={{ background: isAssigned ? TARGET_COLOR : C.dim, color: isAssigned ? "#fff" : C.text, fontSize:10, fontWeight:600, padding:"2px 5px", borderRadius:2 }}>T{targetId}</span>
+                            <div style={{ flex:1, height:4, background:C.bg, borderRadius:2, overflow:"hidden" }}>
                               <div style={{
                                 height:"100%", borderRadius:2, transition:"width 0.15s",
                                 width:`${Math.max(4, Math.min(100, 100 - distance * 0.16))}%`,
-                                background: role==="primary"?C.green:role==="secondary"?C.yellow:role==="tertiary"?C.orange:C.dim+"40",
+                                background: role==="primary"?C.green:role==="secondary"?C.gold:role==="tertiary"?C.orange:C.dim+"40",
                               }}/>
                             </div>
-                            <span style={{ fontSize:9, color:C.dim, minWidth:36, textAlign:"right" }}>{distance.toFixed(0)}cm</span>
+                            <span style={{ fontSize:11, color:C.dim, minWidth:36, textAlign:"right" }}>{distance.toFixed(0)}cm</span>
                             {isAssigned ? (
-                              <span style={{ minWidth:30, fontSize:8, fontWeight:700, textAlign:"center",
-                                color:role==="primary"?C.green:role==="secondary"?C.yellow:C.orange,
-                                border:`1px solid ${role==="primary"?C.green+"40":role==="secondary"?C.yellow+"40":C.orange+"40"}`,
+                              <span style={{ minWidth:30, fontSize:10, fontWeight:600, textAlign:"center",
+                                color:role==="primary"?C.green:role==="secondary"?C.gold:C.orange,
+                                border:`1px solid ${role==="primary"?C.green+"40":role==="secondary"?C.gold+"40":C.orange+"40"}`,
                                 borderRadius:3, padding:"1px 4px",
                               }}>
                                 {role==="primary"?"P1":role==="secondary"?"P2":"P3"}
                               </span>
                             ) : (
-                              <span style={{ minWidth:30, fontSize:8, textAlign:"center", color:C.dim }}>—</span>
+                              <span style={{ minWidth:30, fontSize:10, textAlign:"center", color:C.dim }}>—</span>
                             )}
                           </div>
                           );
@@ -589,9 +598,9 @@ export default function App() {
             {/* MATRIX TAB */}
             {tab === "matrix" && (
               <div>
-                <div style={{ fontSize:9, color:C.dim, marginBottom:8, lineHeight:1.6 }}>
+                <div style={{ fontSize:11, color:C.dim, marginBottom:8, lineHeight:1.6 }}>
                   Distance matrix = raw assignment computation. Rows are targets, columns are agents, and every cell is the live metre distance recomputed each tick.
-                  <span style={{ color:C.green }}> Green✓</span> = P1, <span style={{ color:C.yellow }}>Yellow~</span> = P2, <span style={{ color:C.orange }}>Orange·</span> = P3, <span style={{ color:C.teal }}>Teal●</span> = closest-but-not-assigned.
+                  <span style={{ color:C.green }}> Green✓</span> = P1, <span style={{ color:C.gold }}>Gold~</span> = P2, <span style={{ color:C.orange }}>Orange·</span> = P3, <span style={{ color:C.cyan }}>Cyan●</span> = closest-but-not-assigned.
                 </div>
                 <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
                   {[
@@ -602,21 +611,21 @@ export default function App() {
                     { id:"prox", lbl:"PROX ONLY" },
                   ].map((b) => (
                     <button key={b.id} onClick={() => setMatrixFocus(b.id)} style={{
-                      background: matrixFocus === b.id ? "#122031" : "#0a111b",
-                      border:`1px solid ${matrixFocus === b.id ? C.teal+"80" : C.border}`,
-                      color: matrixFocus === b.id ? C.teal : C.dim,
-                      padding:"3px 8px", borderRadius:4, cursor:"pointer", fontSize:9, fontFamily:"inherit",
+                      background: matrixFocus === b.id ? "rgba(56,189,248,0.12)" : C.bg,
+                      border:`1px solid ${matrixFocus === b.id ? C.cyan : C.border}`,
+                      color: matrixFocus === b.id ? C.cyan : C.dim,
+                      padding:"4px 10px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
                     }}>{b.lbl}</button>
                   ))}
                 </div>
-                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
                   <thead>
                     <tr>
-                      <th style={{ color:C.dim, padding:"4px 8px", textAlign:"left", borderBottom:`1px solid ${C.border}`, fontWeight:400, fontSize:9 }}>Target</th>
+                      <th style={{ color:C.dim, padding:"4px 8px", textAlign:"left", borderBottom:`1px solid ${C.border}`, fontWeight:400, fontSize:11 }}>Target</th>
                       {agents.map(a => (
-                        <th key={a.id} style={{ color:AGENT_COLORS[a.id], padding:"4px 8px", textAlign:"center", borderBottom:`1px solid ${C.border}`, fontWeight:700, fontSize:9 }}>{a.id[0]}</th>
+                        <th key={a.id} style={{ color:AGENT_COLORS[a.id], padding:"4px 8px", textAlign:"center", borderBottom:`1px solid ${C.border}`, fontWeight:600, fontSize:11 }}>{a.id[0]}</th>
                       ))}
-                      <th style={{ color:C.dim, padding:"4px 8px", textAlign:"left", borderBottom:`1px solid ${C.border}`, fontWeight:400, fontSize:9 }}>Assigned</th>
+                      <th style={{ color:C.dim, padding:"4px 8px", textAlign:"left", borderBottom:`1px solid ${C.border}`, fontWeight:400, fontSize:11 }}>Assigned</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -626,9 +635,9 @@ export default function App() {
                       const terAgent  = result.tertiary[targetId];
                       return (
                         <tr key={targetId}
-                          style={{ background:hl===`t${targetId}`?"#0a1422":"transparent", cursor:"pointer" }}
+                          style={{ background:hl===`t${targetId}`?"rgba(56,189,248,0.08)":"transparent", cursor:"pointer" }}
                           onClick={() => setHL(h => h===`t${targetId}`?null:`t${targetId}`)}>
-                          <td style={{ padding:"4px 8px", borderBottom:`1px solid ${C.border}`, color:TARGET_COLOR, fontWeight:700 }}>T{targetId}</td>
+                          <td style={{ padding:"4px 8px", borderBottom:`1px solid ${C.border}`, color:TARGET_COLOR, fontWeight:600 }}>T{targetId}</td>
                           {agents.map(a => {
                             const cell = row.find(r => r.agentId === a.id);
                             const { d, isPrim, isSec, isTer, isProx } = cell || { d:0, isPrim:false, isSec:false, isTer:false, isProx:false };
@@ -640,21 +649,21 @@ export default function App() {
                             return (
                               <td key={a.id} style={{
                                 padding:"4px 8px", textAlign:"center", borderBottom:`1px solid ${C.border}`,
-                                color: isPrim?C.green:isSec?C.yellow:isTer?C.orange:isProx?C.teal:C.dim,
-                                fontWeight: isPrim||isSec||isTer?700:400,
-                                background: isPrim?"rgba(74,222,128,0.08)":isSec?"rgba(254,228,64,0.06)":isTer?"rgba(255,159,67,0.07)":"transparent",
-                                fontSize:10,
+                                color: isPrim?C.green:isSec?C.gold:isTer?C.orange:isProx?C.cyan:C.dim,
+                                fontWeight: isPrim||isSec||isTer?600:400,
+                                background: isPrim?"rgba(63,185,80,0.12)":isSec?"rgba(210,152,75,0.1)":isTer?"rgba(210,152,75,0.08)":"transparent",
+                                fontSize:11,
                                 opacity: focusMatch ? 1 : 0.28,
                               }}>
                                 {isProx?"●":""}{d.toFixed(0)}{isPrim?"✓":isSec?"~":isTer?"·":""}
                               </td>
                             );
                           })}
-                          <td style={{ padding:"4px 8px", borderBottom:`1px solid ${C.border}`, fontSize:9 }}>
+                          <td style={{ padding:"4px 8px", borderBottom:`1px solid ${C.border}`, fontSize:11 }}>
                             {primAgent
-                              ? <span style={{ color:AGENT_COLORS[primAgent], fontWeight:700 }}>{primAgent} <span style={{ color:C.green }}>P1</span></span>
+                              ? <span style={{ color:AGENT_COLORS[primAgent], fontWeight:600 }}>{primAgent} <span style={{ color:C.green, fontWeight:600 }}>P1</span></span>
                               : secAgent
-                              ? <span style={{ color:AGENT_COLORS[secAgent] }}>{secAgent} <span style={{ color:C.yellow }}>P2</span></span>
+                              ? <span style={{ color:AGENT_COLORS[secAgent] }}>{secAgent} <span style={{ color:C.gold }}>P2</span></span>
                               : terAgent
                               ? <span style={{ color:AGENT_COLORS[terAgent] }}>{terAgent} <span style={{ color:C.orange }}>P3</span></span>
                               : <span style={{ color:C.red }}>NONE</span>}
@@ -664,9 +673,9 @@ export default function App() {
                     })}
                   </tbody>
                 </table>
-                <div style={{ marginTop:8, fontSize:9, color:C.dim, lineHeight:1.7 }}>
+                <div style={{ marginTop:8, fontSize:11, color:C.dim, lineHeight:1.7 }}>
                   Euclidean mode queues extra targets into P2 then P3 tiers. Selection favors closest agent, then earliest completion.
-                  Pathfinding mode still uses anti-thrash threshold of <span style={{ color:C.yellow }}>{REASSIGN_THRESHOLD}cm</span>.
+                  Pathfinding mode still uses anti-thrash threshold of <span style={{ color:C.gold }}>{REASSIGN_THRESHOLD}cm</span>.
                 </div>
               </div>
             )}
@@ -674,7 +683,7 @@ export default function App() {
             {/* JSON TAB */}
             {tab === "json" && (
               <div>
-                <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em", marginBottom:8 }}>
+                <div style={{ fontSize:11, color:C.dim, letterSpacing:"0.04em", marginBottom:8 }}>
                   Live payload mirrored to Person 4 map integration. Use these controls to verify schema segments before wiring WebSocket consumers.
                 </div>
                 <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
@@ -685,27 +694,27 @@ export default function App() {
                     { id:"coverage", lbl:"UNASSIGNED[]" },
                   ].map((b) => (
                     <button key={b.id} onClick={() => setJsonView(b.id)} style={{
-                      background: jsonView === b.id ? "#122031" : "#0a111b",
-                      border:`1px solid ${jsonView === b.id ? C.teal+"80" : C.border}`,
-                      color: jsonView === b.id ? C.teal : C.dim,
-                      padding:"3px 8px", borderRadius:4, cursor:"pointer", fontSize:9, fontFamily:"inherit",
+                      background: jsonView === b.id ? "rgba(56,189,248,0.12)" : C.bg,
+                      border:`1px solid ${jsonView === b.id ? C.cyan : C.border}`,
+                      color: jsonView === b.id ? C.cyan : C.dim,
+                      padding:"4px 10px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
                     }}>{b.lbl}</button>
                   ))}
                   <button onClick={() => setJsonPretty((v) => !v)} style={{
-                    background: jsonPretty ? "#14200f" : "#0a111b",
-                    border:`1px solid ${jsonPretty ? C.green+"80" : C.border}`,
+                    background: jsonPretty ? "rgba(52,211,153,0.1)" : C.bg,
+                    border:`1px solid ${jsonPretty ? C.green : C.border}`,
                     color: jsonPretty ? C.green : C.dim,
-                    padding:"3px 8px", borderRadius:4, cursor:"pointer", fontSize:9, fontFamily:"inherit",
+                    padding:"4px 10px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
                   }}>{jsonPretty ? "PRETTY" : "MINIFIED"}</button>
                   <button onClick={() => {
                     navigator.clipboard?.writeText(JSON.stringify(jsonPayloadView, null, jsonPretty ? 2 : 0));
                     addEvent("📋 JSON copied to clipboard", "system");
                   }} style={{
-                    background:"#0f1a12", border:`1px solid ${C.green}60`, color:C.green,
-                    padding:"3px 8px", borderRadius:4, cursor:"pointer", fontSize:9, fontFamily:"inherit",
+                    background:"rgba(52,211,153,0.1)", border:`1px solid ${C.green}80`, color:C.green,
+                    padding:"4px 10px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
                   }}>COPY JSON</button>
                 </div>
-                <pre style={{ margin:0, fontSize:9, color:"#7ab0c8", lineHeight:1.7, background:"#040710", padding:10, borderRadius:4, border:`1px solid ${C.border}`, overflow:"auto", maxHeight:300 }}>
+                <pre style={{ margin:0, fontSize:11, color:C.cyan, lineHeight:1.7, background:C.bg, padding:10, borderRadius:4, border:`1px solid ${C.border}`, overflow:"auto", maxHeight:300 }}>
                   {JSON.stringify(jsonPayloadView, null, jsonPretty ? 2 : 0)}
                 </pre>
               </div>
@@ -715,11 +724,11 @@ export default function App() {
             {tab === "log" && (
               <div>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-                  <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em" }}>EVENT LOG · newest first</div>
-                  <button onClick={() => setEvents([])} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.dim, padding:"2px 8px", borderRadius:3, cursor:"pointer", fontSize:9, fontFamily:"inherit" }}>CLEAR</button>
+                  <div style={{ fontSize:11, color:C.dim, letterSpacing:"0.04em" }}>EVENT LOG · newest first</div>
+                  <button onClick={() => setEvents([])} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.dim, padding:"4px 10px", borderRadius:3, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>CLEAR</button>
                 </div>
-                <div style={{ fontSize:9, color:C.dim, marginBottom:8, lineHeight:1.6 }}>
-                  Audit stream of assignment behavior: <span style={{ color:C.yellow }}>↩ reassign</span>, <span style={{ color:C.red }}>🔴 spawn</span>, <span style={{ color:C.green }}>✅ neutralise</span>, and system status.
+                <div style={{ fontSize:11, color:C.dim, marginBottom:8, lineHeight:1.6 }}>
+                  Audit stream of assignment behavior: <span style={{ color:C.gold }}>↩ reassign</span>, <span style={{ color:C.red }}>🔴 spawn</span>, <span style={{ color:C.green }}>✅ neutralise</span>, and system status.
                 </div>
                 <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
                   {[
@@ -730,17 +739,17 @@ export default function App() {
                     { id:"system", lbl:`SYS ${logCounts.system}` },
                   ].map((b) => (
                     <button key={b.id} onClick={() => setLogFilter(b.id)} style={{
-                      background: logFilter === b.id ? "#122031" : "#0a111b",
-                      border:`1px solid ${logFilter === b.id ? C.teal+"80" : C.border}`,
-                      color: logFilter === b.id ? C.teal : C.dim,
-                      padding:"3px 8px", borderRadius:4, cursor:"pointer", fontSize:9, fontFamily:"inherit",
+                      background: logFilter === b.id ? "rgba(56,189,248,0.12)" : C.bg,
+                      border:`1px solid ${logFilter === b.id ? C.cyan : C.border}`,
+                      color: logFilter === b.id ? C.cyan : C.dim,
+                      padding:"4px 10px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
                     }}>{b.lbl}</button>
                   ))}
                 </div>
-                {visibleEvents.length === 0 && <div style={{ fontSize:10, color:C.dim, animation:"pulse 2s infinite" }}>No events for this filter…</div>}
+                {visibleEvents.length === 0 && <div style={{ fontSize:11, color:C.dim, animation:"pulse 2s infinite" }}>No events for this filter…</div>}
                 {visibleEvents.map((e, i) => (
                   <div key={e.ts + i} style={{
-                    fontSize:10, padding:"3px 0", borderBottom:`1px solid ${C.border}`,
+                    fontSize:11, padding:"4px 0", borderBottom:`1px solid ${C.border}`,
                     color:e.type==="reassign"?C.yellow:e.type==="spawn"?C.red:e.type==="remove"?C.green:C.dim,
                     opacity:Math.max(0.25, 1 - i * 0.04),
                     animation:i===0?"fadeIn 0.2s ease":"none",
@@ -751,7 +760,7 @@ export default function App() {
           </div>
 
           {unassigned.length > 0 && (
-            <div style={{ marginTop:8, padding:"8px 12px", background:"#150808", border:`1px solid ${C.red}40`, borderRadius:5, fontSize:10, animation:"fadeIn 0.3s ease" }}>
+            <div style={{ marginTop:8, padding:"8px 12px", background:"rgba(248,113,113,0.12)", border:`1px solid ${C.red}60`, borderRadius:8, fontSize:11, animation:"fadeIn 0.3s ease" }}>
               <span style={{ color:C.red, fontWeight:700 }}>⚠ COVERAGE GAP — </span>
               <span style={{ color:C.text }}>Targets {unassigned.map(t=>`T${t.id}`).join(", ")} unassigned. All agents at capacity.</span>
             </div>
@@ -767,23 +776,32 @@ export default function App() {
             const isHl = hl === agent.id;
             const prList = result.agentPriorities[agent.id] || [];
             const primEntry = prList.find(e => e.role === "primary");
+            const secEntry = prList.find(e => e.role === "secondary");
             return (
               <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
-                <div style={{ background:"#0d2030", border:`1px solid ${C.border}`, borderRadius:6, height:240, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:10 }}>
+                <div style={{ background:"#1a2744", border:`1px solid ${C.border}`, borderRadius:8, height:240, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11 }}>
                   {agent.id} Live Camera View
                 </div>
                 <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
-                  style={{ marginTop:6, padding:8, background:isHl?"#0e1825":C.panel, border:`1px solid ${isHl?color:C.border}`, borderRadius:5, cursor:"pointer" }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
-                    <div style={{ width:8, height:8, borderRadius:"50%", background:color }}/>
-                    <span style={{ color, fontWeight:700, fontSize:11 }}>{agent.id}</span>
+                  style={{ marginTop:6, padding:12, background:"#0f1629", border:`1px solid ${isHl?color:C.border}`, borderRadius:8, cursor:"pointer" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", gap:16 }}>
+                    <div>
+                      <div style={{ fontSize:11, color:C.text, marginBottom:2 }}>{agent.id}</div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Position</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)})</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Primary</div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Target T${primEntry.targetId}` : "—"}</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Distance: ${primEntry.distance.toFixed(0)} cm` : ""}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Secondary</div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Target T${secEntry.targetId}` : "—"}</div>
+                    </div>
                   </div>
-                  <div style={{ fontSize:8, color:C.dim, marginBottom:4 }}>{agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)} cm</div>
-                  <div style={{ fontSize:9 }}>
-                    {primEntry ? <span style={{ color:C.green }}>P1 T{primEntry.targetId} {primEntry.distance.toFixed(0)}cm</span> : <span style={{ color:C.dim }}>P1 —</span>}
-                  </div>
-                  <div style={{ fontSize:9, color:C.dim }}>P2 — · P3 —</div>
-                  <div style={{ fontSize:8, color:C.green, marginTop:4 }}>ASSIGNED</div>
                 </div>
               </div>
             );
@@ -793,18 +811,18 @@ export default function App() {
       </div>
 
       {/* Config footer */}
-      <div style={{ flexShrink:0, marginTop:10, padding:"8px 14px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, display:"flex", gap:18, flexWrap:"wrap", alignItems:"center" }}>
-        <span style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em" }}>ENGINE CONFIG — mirrors assignment_engine.py</span>
+      <div style={{ flexShrink:0, marginTop:10, padding:"10px 16px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:8, display:"flex", gap:18, flexWrap:"wrap", alignItems:"center" }}>
+        <span style={{ fontSize:11, color:C.dim, letterSpacing:"0.05em" }}>ENGINE CONFIG — mirrors assignment_engine.py</span>
         {[
           { label:"Algorithm",     value:"priority_v2_antithrash",     col:C.green },
-          { label:"Reassign Δ",   value:`>${REASSIGN_THRESHOLD}cm`,    col:C.yellow },
+          { label:"Reassign Δ",   value:`>${REASSIGN_THRESHOLD}cm`,    col:C.gold },
           { label:"Stale TTL",    value:`${STALE_TTL/1000}s`,          col:C.purple },
           { label:"Priority",     value:"global P1 + queued P2/P3",     col:C.teal },
-          { label:"Always drawn", value:"proximity line per target",    col:C.text },
+          { label:"Always drawn", value:"proximity line per target",    col:C.cyan },
         ].map(c => (
-          <div key={c.label} style={{ fontSize:9 }}>
+          <div key={c.label} style={{ fontSize:11 }}>
             <span style={{ color:C.dim }}>{c.label}: </span>
-            <span style={{ color:c.col, fontWeight:700 }}>{c.value}</span>
+            <span style={{ color:c.col, fontWeight:600 }}>{c.value}</span>
           </div>
         ))}
       </div>
