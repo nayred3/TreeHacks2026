@@ -20,6 +20,7 @@ import json
 import math
 import os
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -443,7 +444,42 @@ def main():
         "--http-port", type=int, default=5051,
         help="HTTP port for /api/map (default: 5051, matches frontend proxy)",
     )
+    p.add_argument(
+        "--with-camera", action="store_true",
+        help="Spawn camera.py automatically (webcam + YOLO + MJPEG stream)",
+    )
+    p.add_argument(
+        "--stream-port", type=int, default=5056,
+        help="MJPEG stream port for camera (default: 5056, used with --with-camera)",
+    )
     args = p.parse_args()
+
+    camera_proc = None
+    if args.with_camera:
+        cam_script = os.path.join(ROOT, "computervision", "camera.py")
+        cmd = [
+            sys.executable, cam_script,
+            "--camera-id", "cam1", "--source", "0",
+            "--emit", "camera+tracks",
+            "--cam-x", "0", "--cam-y", "0", "--yaw-deg", "0", "--hfov-deg", "70",
+            "--udp-port", str(args.udp_port),
+            "--stream-port", str(args.stream_port),
+        ]
+        camera_proc = subprocess.Popen(
+            cmd, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
+        def cleanup_camera():
+            if camera_proc and camera_proc.poll() is None:
+                camera_proc.terminate()
+                try:
+                    camera_proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    camera_proc.kill()
+
+        import atexit
+        atexit.register(cleanup_camera)
+        print(f"[CAMERA] Spawned camera.py (stream on port {args.stream_port})")
 
     server = LiveFusionServer(udp_port=args.udp_port, http_port=args.http_port)
     server.run()

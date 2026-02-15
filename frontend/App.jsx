@@ -532,11 +532,31 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Main layout: center (map + recap) leftmost | right cameras | left cameras ── */}
+      {/* ── Main layout: Live Demo = camera on top, map below; else side-by-side ── */}
       <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", maxWidth:"100%", overflow:"auto" }}>
+      {isLiveDemo && (
+        /* Camera view strip (top) */
+        <div style={{ flexShrink:0, display:"flex", gap:8, padding:"0 0 12px 0", borderBottom:`1px solid ${C.border}`, marginBottom:12 }}>
+          {agents.map(agent => {
+            const color = AGENT_COLORS[agent.id] || "#888";
+            const isHl = hl === agent.id;
+            return (
+              <div key={agent.id} style={{ flex:1, minWidth:200 }}>
+                <div style={{ background:C.gradientOmbre, border:`1px solid ${isHl ? color + "99" : C.border}`, borderRadius:8, height:180, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11, boxShadow: isHl ? `0 0 16px ${color}30` : "0 2px 8px rgba(0,0,0,0.2)" }}>
+                  {CAM_STREAM_URLS[agent.id] ? (
+                    <CameraStream agentId={agent.id} streamUrl={CAM_STREAM_URLS[agent.id]} fallback={<span>{agent.id}</span>} />
+                  ) : (
+                    <span>{agent.id}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div style={{ flex:1, minHeight:0, display:"flex", gap:0, justifyContent:"flex-start", alignItems:"stretch", minWidth:"min-content" }}>
 
-        {/* Center column: Live map + Recap (leftmost edge) */}
+        {/* Center column: Live map + Recap (fusion frontend) */}
         <div style={{ width: Math.round((WW + 24) * 0.78), flexShrink:0, overflow:"hidden" }}>
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12, transform:"scale(0.78)", transformOrigin:"top left", width: WW + 24 }}>
           {/* Live map */}
@@ -825,7 +845,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Agent panels: top row Alice & Bob, bottom row Charlie & Diana */}
+        {/* Agent panels: camera boxes (when not Live Demo) + recap */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gridTemplateRows:"auto auto", rowGap:0, columnGap:8, flex:1, minWidth:320, alignContent:"start" }}>
           {agents.map(agent => {
             const color = AGENT_COLORS[agent.id] || "#888";
@@ -835,15 +855,13 @@ export default function App() {
             const secEntry = prList.find(e => e.role === "secondary");
             return (
                     <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
+                {!isLiveDemo && (
                 <div style={{ background:C.gradientOmbre, border:`1px solid ${isHl ? color + "99" : C.border}`, borderRadius:8, height:240, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11, boxShadow: isHl ? `0 0 16px ${color}30` : "0 2px 8px rgba(0,0,0,0.2)" }}>
-                  {CAM_STREAM_URLS[agent.id] && isLiveDemo ? (
-                    <CameraStream agentId={agent.id} streamUrl={CAM_STREAM_URLS[agent.id]} fallback={<span>{agent.id} Live Camera View</span>} />
-                  ) : (
-                    <span>{agent.id} Live Camera View</span>
-                  )}
+                  <span>{agent.id} Live Camera View</span>
                 </div>
+                )}
                 <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
-                  style={{ marginTop:6, padding:12, background:C.gradientPanel, border:`1px solid ${isHl?color:C.border}`, borderRadius:8, cursor:"pointer", boxShadow: isHl ? `0 0 12px ${color}25` : "none" }}>
+                  style={{ marginTop: isLiveDemo ? 0 : 6, padding:12, background:C.gradientPanel, border:`1px solid ${isHl?color:C.border}`, borderRadius:8, cursor:"pointer", boxShadow: isHl ? `0 0 12px ${color}25` : "none" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", gap:16 }}>
                     <div>
                       <div style={{ fontSize:11, color:C.text, marginBottom:2 }}>{agent.id}</div>

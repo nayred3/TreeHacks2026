@@ -21,20 +21,21 @@ When **LIVE DEMO** is pressed, the frontend polls fusion camera data and plots a
 
 ### Option A: Real-time camera pipeline (camera position + target detection)
 
-1. **Start the live fusion server** (UDP listener + HTTP `/api/map` on port 5051):
+1. **Start the live fusion server** (optionally spawns camera automatically):
    ```bash
-   python -m fusion.live_fusion
+   python -m fusion.live_fusion --with-camera
    ```
+   With `--with-camera`, live_fusion spawns camera.py (webcam + YOLO + MJPEG stream). Without it, start camera.py separately (see step 2).
 
-2. **Start camera.py** (webcam + YOLO detection + BoT-SORT tracking, emits to UDP 5055, streams MJPEG for frontend):
+2. **Start camera.py** (if not using `--with-camera`):
    ```bash
    python computervision/camera.py --camera-id cam1 --source 0 --show \
        --emit camera+tracks --cam-x 0 --cam-y 0 --yaw-deg 0 --hfov-deg 70 \
        --udp-port 5055 --stream-port 5056
    ```
-   The `--stream-port 5056` serves the camera view at `http://127.0.0.1:5056/stream`, which the frontend embeds in the cam1 camera view box when Live Demo is on. Optional: if using iPhone for position updates, run `position_receiver.py` and point camera.py at it.
 
 3. **Start the frontend** (`npm run dev` or `./node_modules/.bin/vite`) and click **LIVE DEMO**.
+   The Live Demo page shows camera feeds at the top and the fusion map (agents + targets) below.
 
 ### Option B: Simulated data (no camera)
 

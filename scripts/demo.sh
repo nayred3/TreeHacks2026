@@ -37,24 +37,14 @@ echo "  TreeHacks2026 Live Demo"
 echo "========================================"
 echo ""
 
-# 1. Start live_fusion (UDP 5055, HTTP 5051)
-echo "[1/3] Starting live_fusion (port 5051)..."
-python -m fusion.live_fusion &
+# 1. Start live_fusion with camera (spawns camera.py, UDP 5055, HTTP 5051, stream 5056)
+echo "[1/2] Starting live_fusion with camera (port 5051, stream 5056)..."
+python -m fusion.live_fusion --with-camera &
 PIDS+=($!)
-sleep 2
+sleep 5
 
-# 2. Start camera.py (webcam, YOLO, UDP to 5055, MJPEG stream on 5056)
-echo "[2/3] Starting camera.py (webcam + YOLO, stream port 5056)..."
-python computervision/camera.py \
-  --camera-id cam1 --source 0 --show \
-  --emit camera+tracks \
-  --cam-x 0 --cam-y 0 --yaw-deg 0 --hfov-deg 70 \
-  --udp-port 5055 --stream-port 5056 &
-PIDS+=($!)
-sleep 3
-
-# 3. Start frontend
-echo "[3/3] Starting frontend (Vite on port 5175)..."
+# 2. Start frontend
+echo "[2/2] Starting frontend (Vite on port 5175)..."
 if ! [ -d node_modules ]; then
   echo "  Running npm install..."
   npm install
