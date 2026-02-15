@@ -112,7 +112,7 @@ export default function App() {
 
   // Load default wall layout on mount so map displays immediately
   useEffect(() => {
-    const layout = createPresetWallLayout(WW, WH, "corridor");
+    const layout = createPresetWallLayout(WW, WH, "schematic-47x37");
     setWallLayout(layout);
     setWallGrid(wallLayoutToGrid(layout, WW, WH));
     if (stateRef.current) {
@@ -310,11 +310,11 @@ export default function App() {
     addEvent("🏗 Schematic cleared — euclidean distances restored", "system");
   };
 
-  const addPresetWalls = (layoutType = "corridor") => {
+  const addPresetWalls = (layoutType = "schematic-47x37") => {
     const layout = createPresetWallLayout(WW, WH, layoutType);
     setWallLayout(layout);
     setWallGrid(wallLayoutToGrid(layout, WW, WH));
-    setIsLiveDemo(layoutType === "dual-vertical");
+    setIsLiveDemo(layoutType === "dual-vertical" || layoutType === "schematic-47x37");
     if (stateRef.current) {
       stateRef.current.prevPrimary = {};
       stateRef.current.prevSecondary = {};
@@ -461,7 +461,7 @@ export default function App() {
               <button onClick={scatter} style={{ background:"#2d2608", border:`1px solid ${C.gold}60`, color:C.gold, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>⚡ SCATTER</button>
             </>
           )}
-          <button onClick={() => { setIsLiveDemo(prev => !prev); if (!isLiveDemo) addPresetWalls("dual-vertical"); }} style={{
+          <button onClick={() => { setIsLiveDemo(prev => !prev); if (!isLiveDemo) addPresetWalls("schematic-47x37"); }} style={{
             background: isLiveDemo ? "linear-gradient(135deg, rgba(79,124,255,0.28) 0%, rgba(56,189,248,0.18) 100%)" : C.panel, border:`1px solid ${isLiveDemo ? C.accent + "99" : C.border}`, color:C.cyan,
             padding:"6px 12px", borderRadius:6, cursor:"pointer", fontSize:11, fontFamily:"inherit", boxShadow: isLiveDemo ? "0 0 14px rgba(79,124,255,0.3)" : "none",
           }}>{isLiveDemo ? "LIVE DEMO ON" : "LIVE DEMO"}</button>

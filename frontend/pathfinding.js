@@ -9,6 +9,7 @@ export { GRID_SIZE };
 
 /** Preset wall layout options for dropdown. */
 export const WALL_LAYOUT_OPTIONS = [
+  { id: "schematic-47x37", label: "47.17' × 37.5' schematic" },
   { id: "corridor", label: "7 rooms" },
   { id: "simple", label: "1 room" },
   { id: "two-room", label: "2 rooms" },
@@ -73,6 +74,34 @@ export function createPresetWallLayout(ww, wh, layoutType = "corridor") {
     addVSegDoor(vx, T, B);
     addHSegDoor(hy, L, R);
     return { walls, doors };
+  }
+
+  // schematic-47x37: 47.17' × 37.5' room from blueprint (thick = walls, dotted = dimension indicators)
+  if (layoutType === "schematic-47x37") {
+    const W_FT = 47.17, H_FT = 37.5;
+    const sx = ww / W_FT, sy = wh / H_FT;
+
+    // Walls (thick lines) — no doors, open floor plan
+    addHWall(0, 0, ww);                                                    // Top: 47.17'
+    addVWall(0, 0, 9.0833 * sy);                                           // Left: 9.0833'
+    addVWall(ww, 0, 9.0833 * sy);                                          // Right top: 9.0833'
+    addVWall(ww, 20.9166 * sy, 24.6666 * sy);                              // Right middle: 3.75'
+    addVWall((W_FT - 12.5) * sx, 20.9166 * sy, 24.6666 * sy);              // Internal right: 3.75', 12.5' from right edge
+
+    // Dimension indicators (dotted lines) — measurement guides
+    const pad = 16;
+    const dimensions = [
+      { x1: pad, y1: pad, x2: ww - pad, y2: pad, label: "47.17 ft" },
+      { x1: pad, y1: pad, x2: pad, y2: wh - pad, label: "37.5 ft" },
+      { x1: pad, y1: pad, x2: pad, y2: 9.0833 * sy + pad, label: "9.0833 ft" },
+      { x1: ww - pad, y1: pad, x2: ww - pad, y2: 9.0833 * sy + pad, label: "9.0833 ft" },
+      { x1: ww - pad, y1: 9.0833 * sy + pad, x2: ww - pad, y2: 20.9166 * sy - pad, label: "11.8333 ft" },
+      { x1: ww - pad, y1: 20.9166 * sy + pad, x2: ww - pad, y2: 24.6666 * sy - pad, label: "3.75 ft" },
+      { x1: ww - pad, y1: 24.6666 * sy + pad, x2: ww - pad, y2: wh - pad, label: "5.0833 ft" },
+      { x1: (W_FT - 12.5) * sx + pad, y1: 24.6666 * sy + pad, x2: ww - pad, y2: 24.6666 * sy + pad, label: "12.5 ft" },
+    ];
+
+    return { walls, doors, dimensions };
   }
 
   // dual-vertical: two vertical pillars, 886 cm × 688 cm (1 px = 1 cm)

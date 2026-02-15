@@ -153,6 +153,32 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
         }
       }
     }
+
+    // Dimension indicators (dotted measurement lines)
+    if (wallLayout.dimensions?.length) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(79,124,255,0.35)";
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 6]);
+      ctx.font = "10px DM Sans, system-ui, sans-serif";
+      ctx.fillStyle = "rgba(139,163,212,0.8)";
+      for (const d of wallLayout.dimensions) {
+        ctx.beginPath();
+        ctx.moveTo(d.x1, d.y1);
+        ctx.lineTo(d.x2, d.y2);
+        ctx.stroke();
+        const mx = (d.x1 + d.x2) / 2;
+        const my = (d.y1 + d.y2) / 2;
+        ctx.save();
+        ctx.translate(mx, my);
+        const isVertical = Math.abs(d.x2 - d.x1) < Math.abs(d.y2 - d.y1);
+        if (isVertical) ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = "center";
+        ctx.fillText(d.label, 0, -4);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
     ctx.restore();
   } else if (wallGrid?.length) {
     // Schematic: draw each wall cell as a filled rect (light pixels = walls)
