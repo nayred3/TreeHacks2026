@@ -429,8 +429,8 @@ export default function App() {
     const alicePos = feetToFrontendPos(6, 9);
     const now = Date.now();
     stateRef.current.agents = [
-      { id: "Bob", position: bobPos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
-      { id: "Alice", position: alicePos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
+      { id: "Logan", position: bobPos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
+      { id: "Justin", position: alicePos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
     ];
     stateRef.current.targets = [];
     stateRef.current.prevPrimary = {};
