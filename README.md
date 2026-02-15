@@ -18,9 +18,9 @@
 ## Running the Backend (optional)
 
 ```bash
-python -m backend.assignment              # Demo simulation
-python -m backend.assignment --serve      # Start HTTP + WebSocket server
-uvicorn backend.assignment:app --reload --port 8001   # Alternative server launch
+python -m assignment_model.assignment              # Demo simulation
+python -m assignment_model.assignment --serve      # Start HTTP + WebSocket server
+uvicorn assignment_model.assignment:app --reload --port 8001   # Alternative server launch
 ```
 
 ## Project Structure
@@ -36,7 +36,7 @@ uvicorn backend.assignment:app --reload --port 8001   # Alternative server launc
 │   ├── canvas.js           # Canvas renderer
 │   ├── distances.js        # Distance matrix computation
 │   └── pathfinding.js      # A* pathfinding
-├── backend/
+├── assignment_model/
 │   ├── assignment.py       # Python entry point
 │   ├── engine.py           # Assignment engine
 │   ├── server.py           # FastAPI + WebSocket server
