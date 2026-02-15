@@ -19,13 +19,11 @@ targets:
       - path: PhoneCamStream
         excludes:
           - "*.plist"
-    info:
-      path: PhoneCamStream/Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.treehacks.PhoneCamStream
-        TARGETED_DEVICE_FAMILY: "1"       # iPhone only
-        DEVELOPMENT_TEAM: ""              # Set your team ID here or in Xcode
+        TARGETED_DEVICE_FAMILY: "1"
+        DEVELOPMENT_TEAM: ""
         CODE_SIGN_STYLE: Automatic
         INFOPLIST_FILE: PhoneCamStream/Info.plist
-        GENERATE_INFOPLIST_FILE: false
+        GENERATE_INFOPLIST_FILE: NO

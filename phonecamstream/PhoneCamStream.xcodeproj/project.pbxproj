@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -24,7 +24,7 @@
 		87A54CA12AB0AE0290C9A6D2 /* PositionSender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PositionSender.swift; sourceTree = "<group>"; };
 		D2E299D82B8E70EE02B0A19A /* CameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreview.swift; sourceTree = "<group>"; };
 		E65AB07D6FB9EBE59155E448 /* StreamingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingView.swift; sourceTree = "<group>"; };
-		ED7B4FEA8E91B30F5FCFC7F0 /* PhoneCamStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhoneCamStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ED7B4FEA8E91B30F5FCFC7F0 /* PhoneCamStream.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PhoneCamStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5B3DD3B2A5E0633AA5F3FC9 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		F6227F36D4C62511975651E9 /* FrameStreamer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameStreamer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -91,6 +91,7 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					5F38303A3B5933A1CF94FB7B = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -105,6 +106,7 @@
 			);
 			mainGroup = 49C9EAB81D84130B65FF5BF9;
 			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -257,7 +259,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 5VAJV883WH;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = PhoneCamStream/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -276,7 +278,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 5VAJV883WH;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = PhoneCamStream/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
