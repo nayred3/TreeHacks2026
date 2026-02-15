@@ -20,7 +20,6 @@
 ```
 ├── index.html              # HTML entry point
 ├── main.jsx                # React entry point
-├── front_end.js            # Re-exports App from frontend/
 ├── frontend/
 │   ├── App.jsx             # Main React component (UI, controls, tabs)
 │   ├── config.js           # World constants, colors, thresholds

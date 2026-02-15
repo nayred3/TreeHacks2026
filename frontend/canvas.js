@@ -310,6 +310,9 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const r = 8 + pulse * 2;
 
     ctx.save();
+    // Dim red glow
+    ctx.shadowColor = TARGET_COLOR;
+    ctx.shadowBlur = isHl ? 16 : 10;
     // Pulse ring
     ctx.globalAlpha = alpha * 0.2 * pulse;
     ctx.beginPath(); ctx.arc(tp.x, tp.y, r + 12 * pulse, 0, Math.PI * 2);
@@ -317,11 +320,12 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.lineWidth = isHl ? 2 : 1;
     ctx.stroke();
 
-    // Main dot
+    // Main dot — all red
     ctx.globalAlpha = alpha;
     ctx.beginPath(); ctx.arc(tp.x, tp.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = hasPrim ? TARGET_COLOR : hasSec ? "#fbbf24" : hasTer ? "#fb923c" : "rgba(248,113,113,0.6)";
+    ctx.fillStyle = TARGET_COLOR;
     ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.strokeStyle = isHl ? "#f1f5f9" : "rgba(148,163,184,0.5)";
     ctx.lineWidth = isHl ? 2 : 1.2;
     ctx.stroke();

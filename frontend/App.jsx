@@ -145,8 +145,11 @@ export default function App() {
     const rect = canvasRef.current.getBoundingClientRect();
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
-    const clickWorld = toWorld(px, py);
-    const hitRadius = 18;  // cm
+    // Map displayed coords to canvas logical coords (canvas may be scaled)
+    const canvasX = (px / rect.width) * WW;
+    const canvasY = (py / rect.height) * WH;
+    const clickWorld = toWorld(canvasX, canvasY);
+    const hitRadius = 25;  // cm
     for (const a of stateRef.current.agents) {
       if (euclidean(clickWorld, a.position) < hitRadius) { setHL(h => h === a.id ? null : a.id); return; }
     }
@@ -437,50 +440,11 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Main layout: left cameras | center (map + recap) | right cameras ── */}
+      {/* ── Main layout: center (map + recap) leftmost | right cameras | left cameras ── */}
       <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", maxWidth:"100%", overflow:"auto" }}>
-      <div style={{ flex:1, minHeight:0, display:"flex", gap:0, justifyContent:"center", alignItems:"stretch", minWidth:"min-content" }}>
+      <div style={{ flex:1, minHeight:0, display:"flex", gap:0, justifyContent:"flex-start", alignItems:"stretch", minWidth:"min-content" }}>
 
-        {/* Left column: Agent 1 & 2 camera views - flex:1 gives (screen - center) / 2 */}
-        <div style={{ display:"flex", flexDirection:"column", gap:8, flex:1, minWidth:160 }}>
-          {agents.slice(0, 2).map(agent => {
-            const color = AGENT_COLORS[agent.id] || "#888";
-            const isHl = hl === agent.id;
-            const prList = result.agentPriorities[agent.id] || [];
-            const primEntry = prList.find(e => e.role === "primary");
-            const secEntry = prList.find(e => e.role === "secondary");
-            return (
-              <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
-                <div style={{ background:"#1a2744", border:`1px solid ${C.border}`, borderRadius:8, height:240, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11 }}>
-                  {agent.id} Live Camera View
-                </div>
-                <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
-                  style={{ marginTop:6, padding:12, background:"#0f1629", border:`1px solid ${isHl?color:C.border}`, borderRadius:8, cursor:"pointer" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", gap:16 }}>
-                    <div>
-                      <div style={{ fontSize:11, color:C.text, marginBottom:2 }}>{agent.id}</div>
-                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Position</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)})</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Primary</div>
-                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Target T${primEntry.targetId}` : "—"}</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Distance: ${primEntry.distance.toFixed(0)} cm` : ""}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Secondary</div>
-                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Target T${secEntry.targetId}` : "—"}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Center column: Live map + Recap (reduced) - wrapper width matches scaled visual to avoid gaps */}
+        {/* Center column: Live map + Recap (leftmost edge) */}
         <div style={{ width: Math.round((WW + 24) * 0.78), flexShrink:0, overflow:"hidden" }}>
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12, transform:"scale(0.78)", transformOrigin:"top left", width: WW + 24 }}>
           {/* Live map */}
@@ -496,7 +460,7 @@ export default function App() {
                   <span style={{ fontSize:11, fontWeight:hl===a.id?600:400, color:hl===a.id?AGENT_COLORS[a.id]:C.text }}>{a.id}</span>
                 </div>
               ))}
-              <span style={{ fontSize:11, color:C.dim, marginLeft:"auto" }}>or click target crosshair</span>
+              <span style={{ fontSize:11, color:C.dim, marginLeft:"auto" }}>or click agent/target on map</span>
             </div>
           </div>
 
@@ -769,7 +733,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right column: Agent 3 & 4 camera views - flex:1 gives (screen - center) / 2 */}
+        {/* Right column: Agent 3 & 4 camera views */}
         <div style={{ display:"flex", flexDirection:"column", gap:8, flex:1, minWidth:160 }}>
           {agents.slice(2, 4).map(agent => {
             const color = AGENT_COLORS[agent.id] || "#888";
@@ -800,6 +764,47 @@ export default function App() {
                       <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Secondary</div>
                       <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
                       <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Target T${secEntry.targetId}` : "—"}</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Distance: ${secEntry.distance.toFixed(0)} cm` : ""}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Left column: Agent 1 & 2 camera views */}
+        <div style={{ display:"flex", flexDirection:"column", gap:8, flex:1, minWidth:160 }}>
+          {agents.slice(0, 2).map(agent => {
+            const color = AGENT_COLORS[agent.id] || "#888";
+            const isHl = hl === agent.id;
+            const prList = result.agentPriorities[agent.id] || [];
+            const primEntry = prList.find(e => e.role === "primary");
+            const secEntry = prList.find(e => e.role === "secondary");
+            return (
+              <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
+                <div style={{ background:"#1a2744", border:`1px solid ${C.border}`, borderRadius:8, height:240, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11 }}>
+                  {agent.id} Live Camera View
+                </div>
+                <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
+                  style={{ marginTop:6, padding:12, background:"#0f1629", border:`1px solid ${isHl?color:C.border}`, borderRadius:8, cursor:"pointer" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", gap:16 }}>
+                    <div>
+                      <div style={{ fontSize:11, color:C.text, marginBottom:2 }}>{agent.id}</div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Position</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)})</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Primary</div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Target T${primEntry.targetId}` : "—"}</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Distance: ${primEntry.distance.toFixed(0)} cm` : ""}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Secondary</div>
+                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Target T${secEntry.targetId}` : "—"}</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Distance: ${secEntry.distance.toFixed(0)} cm` : ""}</div>
                     </div>
                   </div>
                 </div>
