@@ -92,8 +92,7 @@ export function createPresetWallLayout(ww, wh, layoutType = "corridor") {
     const xUpper = (W_FT - 6.3) * sx;                                      // 6.3 ft from right edge
     const xLower = (W_FT - 12.5) * sx;                                     // 12.5 ft from right edge
     const yLowerTop = (H_FT - 5.0833 - 3.75) * sy;                         // Top of lower wall
-    const yLowerBot = (H_FT - 5.0833) * sy;                                // Bottom of lower wall
-    addVWall(xUpper, 0, 11.8333 * sy);                                     // Upper wall: 11.8333 ft
+    const yLowerBot = (H_FT - 5.0833) * sy;                                      // Upper wall: 11.8333 ft
     addVWall(xLower, yLowerTop, yLowerBot);                                // Lower wall: 3.75 ft
 
     // ── Dimension indicators (dotted lines) ──
