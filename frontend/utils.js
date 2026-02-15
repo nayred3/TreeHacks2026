@@ -1,11 +1,14 @@
 /**
  * Math utilities — mirrors assignment_engine.py
+ * Positions are in cm with room center = (0, 0).
  */
 
-import { WW, WH } from "./config.js";
+import { ROOM_BOUNDS } from "./config.js";
 
 export const euclidean = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+const MARGIN = 14;  // cm from edge
 
 export function randomWalk(pos, vel, speed) {
   let nx = pos.x + vel.vx;
@@ -17,10 +20,14 @@ export function randomWalk(pos, vel, speed) {
     nvx = (nvx / spd) * speed;
     nvy = (nvy / spd) * speed;
   }
-  if (nx < 14 || nx > WW - 14) nvx *= -1;
-  if (ny < 14 || ny > WH - 14) nvy *= -1;
+  const { xMin, xMax, yMin, yMax } = ROOM_BOUNDS;
+  if (nx < xMin + MARGIN || nx > xMax - MARGIN) nvx *= -1;
+  if (ny < yMin + MARGIN || ny > yMax - MARGIN) nvy *= -1;
   return {
-    pos: { x: clamp(nx, 14, WW - 14), y: clamp(ny, 14, WH - 14) },
+    pos: {
+      x: clamp(nx, xMin + MARGIN, xMax - MARGIN),
+      y: clamp(ny, yMin + MARGIN, yMax - MARGIN),
+    },
     vel: { vx: nvx, vy: nvy },
   };
 }

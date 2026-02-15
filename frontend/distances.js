@@ -1,21 +1,22 @@
 /**
  * Distance matrix — mirrors Python backend.
- * Returns both agent-centric and target-centric views, sorted nearest-first.
- * When a wallGrid is provided, uses A* pathfinding instead of euclidean distance.
- * Also returns a paths map keyed by "agentId->targetId" for wall-aware path rendering.
+ * Positions in meters (center origin). A* uses pixel coords internally.
  */
 
 import { euclidean } from "./utils.js";
 import { astarPath } from "./pathfinding.js";
+import { toPx } from "./config.js";
 
 export function computeDistanceMatrix(agents, targets, wallGrid) {
-  const paths = {};  // "agentId->targetId" => [{x,y}, ...]
+  const paths = {};  // "agentId->targetId" => [{x,y}] in pixel coords for drawing
 
   const distFn = wallGrid
     ? (a, b, aId, tId) => {
-        const result = astarPath(wallGrid, a, b);
+        const aPx = toPx(a);
+        const bPx = toPx(b);
+        const result = astarPath(wallGrid, aPx, bPx);
         if (result.path.length > 0) paths[`${aId}->${tId}`] = result.path;
-        return result.distance;
+        return result.distance;  // 1 px = 1 cm
       }
     : (a, b) => euclidean(a, b);
 

@@ -13,13 +13,14 @@ export const WALL_LAYOUT_OPTIONS = [
   { id: "simple", label: "1 room" },
   { id: "two-room", label: "2-room split" },
   { id: "grid", label: "4 rooms" },
+  { id: "dual-vertical", label: "Example Simulation" },
 ];
 
 /**
  * Create a preset wall layout by type.
  * @param {number} ww - world width
  * @param {number} wh - world height
- * @param {string} layoutType - one of: corridor, simple, two-room, grid
+ * @param {string} layoutType - one of: corridor, simple, two-room, grid, dual-vertical
  */
 export function createPresetWallLayout(ww, wh, layoutType = "corridor") {
   const walls = [];
@@ -72,6 +73,26 @@ export function createPresetWallLayout(ww, wh, layoutType = "corridor") {
     addHSegDoor(B, L, R);
     addVSegDoor(vx, T, B);
     addHSegDoor(hy, L, R);
+    return { walls, doors };
+  }
+
+  // dual-vertical: two vertical pillars, 886 cm × 688 cm (1 px = 1 cm)
+  if (layoutType === "dual-vertical") {
+    // Perimeter with doors
+    addVSegDoor(L, T, midY); addVSegDoor(L, midY, B);
+    addVSegDoor(R, T, midY); addVSegDoor(R, midY, B);
+    addHSegDoor(T, L, R);
+    addHSegDoor(B, L, R);
+
+    // Left wall: X = 297.18 cm, Y = 154.94 cm to 533.4 cm
+    const leftX = 297.18;
+    const wallY0 = 154.94, wallY1 = 533.4;
+    addVSegDoor(leftX, wallY0, wallY1);
+
+    // Right wall: X = 604.52 cm, same vertical span
+    const rightX = 604.52;
+    addVSegDoor(rightX, wallY0, wallY1);
+
     return { walls, doors };
   }
 

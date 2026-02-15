@@ -4,7 +4,7 @@
  */
 
 import { euclidean } from "./utils.js";
-import { WW, WH, AGENT_COLORS, TARGET_COLOR, STALE_TTL } from "./config.js";
+import { WW, WH, AGENT_COLORS, TARGET_COLOR, STALE_TTL, toPx } from "./config.js";
 import { GRID_SIZE } from "./pathfinding.js";
 
 /**
@@ -181,18 +181,19 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
 
   const { primary, secondary, tertiary, agentSecondary, proximity } = result;
 
-  // Coverage zones
+  // Coverage zones (positions in meters; convert to px for drawing)
   if (showZones) {
     agents.forEach((a) => {
+      const ap = toPx(a.position);
       const c = AGENT_COLORS[a.id] || "#888888";
       const r = parseInt(c.slice(1, 3), 16);
       const g = parseInt(c.slice(3, 5), 16);
       const b = parseInt(c.slice(5, 7), 16);
-      const grad = ctx.createRadialGradient(a.position.x, a.position.y, 0, a.position.x, a.position.y, 120);
+      const grad = ctx.createRadialGradient(ap.x, ap.y, 0, ap.x, ap.y, 120);
       grad.addColorStop(0, `rgba(${r},${g},${b},0.07)`);
       grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
       ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(a.position.x, a.position.y, 120, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ap.x, ap.y, 120, 0, Math.PI * 2); ctx.fill();
     });
   }
 
@@ -206,18 +207,19 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const isHl = highlighted === proxId || highlighted === `t${t.id}`;
     if (!isHl) continue;
     const color = AGENT_COLORS[proxId] || "#888";
+    const tp = toPx(t.position), ap = toPx(a.position);
     ctx.save();
     ctx.globalAlpha = 0.4;
     ctx.strokeStyle = color;
     ctx.lineWidth = 1;
     ctx.setLineDash([2, 9]);
-    drawPath(ctx, t.position, a.position, paths, proxId, t.id);
+    drawPath(ctx, tp, ap, paths, proxId, t.id);
     ctx.setLineDash([]);
-    const mp = pathMidpoint(t.position, a.position, paths, proxId, t.id);
+    const mp = pathMidpoint(tp, ap, paths, proxId, t.id);
     ctx.globalAlpha = 0.6;
     ctx.fillStyle = color;
     ctx.font = "9px 'JetBrains Mono',monospace";
-    ctx.fillText(`near · ${euclidean(t.position, a.position).toFixed(0)}m`, mp.x + 3, mp.y + 14);
+    ctx.fillText(`near · ${euclidean(t.position, a.position).toFixed(0)}cm`, mp.x + 3, mp.y + 14);
     ctx.restore();
   }
 
@@ -229,18 +231,19 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const isHl = highlighted === aId || highlighted === `t${t.id}`;
     const color = AGENT_COLORS[aId] || "#888";
     const d = euclidean(t.position, a.position);
+    const tp = toPx(t.position), ap = toPx(a.position);
     ctx.save();
     ctx.globalAlpha = isHl ? 0.8 : 0.3;
     ctx.strokeStyle = color;
     ctx.lineWidth = isHl ? 2.5 : 1.5;
     ctx.setLineDash([7, 5]);
-    drawPath(ctx, t.position, a.position, paths, aId, t.id);
+    drawPath(ctx, tp, ap, paths, aId, t.id);
     ctx.setLineDash([]);
-    const mp2 = pathMidpoint(t.position, a.position, paths, aId, t.id);
+    const mp2 = pathMidpoint(tp, ap, paths, aId, t.id);
     ctx.globalAlpha = isHl ? 0.95 : 0.45;
     ctx.fillStyle = color;
     ctx.font = "9px 'JetBrains Mono',monospace";
-    ctx.fillText(`P2·${d.toFixed(0)}m`, mp2.x + 3, mp2.y + 10);
+    ctx.fillText(`P2·${d.toFixed(0)}cm`, mp2.x + 3, mp2.y + 10);
     ctx.restore();
   }
 
@@ -252,18 +255,19 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const isHl = highlighted === aId || highlighted === `t${t.id}`;
     const color = AGENT_COLORS[aId] || "#888";
     const d = euclidean(t.position, a.position);
+    const tp = toPx(t.position), ap = toPx(a.position);
     ctx.save();
     ctx.globalAlpha = isHl ? 0.75 : 0.25;
     ctx.strokeStyle = color;
     ctx.lineWidth = isHl ? 1.8 : 1.1;
     ctx.setLineDash([2, 4]);
-    drawPath(ctx, t.position, a.position, paths, aId, t.id);
+    drawPath(ctx, tp, ap, paths, aId, t.id);
     ctx.setLineDash([]);
-    const mp3 = pathMidpoint(t.position, a.position, paths, aId, t.id);
+    const mp3 = pathMidpoint(tp, ap, paths, aId, t.id);
     ctx.globalAlpha = isHl ? 0.8 : 0.35;
     ctx.fillStyle = color;
     ctx.font = "9px 'JetBrains Mono',monospace";
-    ctx.fillText(`P3·${d.toFixed(0)}m`, mp3.x + 3, mp3.y + 18);
+    ctx.fillText(`P3·${d.toFixed(0)}cm`, mp3.x + 3, mp3.y + 18);
     ctx.restore();
   }
 
@@ -275,6 +279,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const isHl = highlighted === aId || highlighted === `t${t.id}`;
     const color = AGENT_COLORS[aId] || "#888";
     const d = euclidean(t.position, a.position);
+    const tp = toPx(t.position), ap = toPx(a.position);
     ctx.save();
     ctx.globalAlpha = isHl ? 1 : 0.68;
     ctx.strokeStyle = color;
@@ -282,18 +287,19 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.shadowColor = color;
     ctx.shadowBlur = isHl ? 14 : 6;
     ctx.setLineDash([]);
-    drawPath(ctx, t.position, a.position, paths, aId, t.id);
+    drawPath(ctx, tp, ap, paths, aId, t.id);
     ctx.shadowBlur = 0;
-    const mp1 = pathMidpoint(t.position, a.position, paths, aId, t.id);
+    const mp1 = pathMidpoint(tp, ap, paths, aId, t.id);
     ctx.globalAlpha = isHl ? 1 : 0.85;
     ctx.fillStyle = color;
     ctx.font = "bold 10px 'JetBrains Mono',monospace";
-    ctx.fillText(`P1·${d.toFixed(0)}m`, mp1.x + 3, mp1.y - 4);
+    ctx.fillText(`P1·${d.toFixed(0)}cm`, mp1.x + 3, mp1.y - 4);
     ctx.restore();
   }
 
   // Targets
   for (const t of targets) {
+    const tp = toPx(t.position);
     const isHl = highlighted === `t${t.id}`;
     const hasPrim = primary[t.id] !== undefined;
     const hasSec = secondary?.[t.id] !== undefined || Object.values(agentSecondary).includes(t.id);
@@ -306,14 +312,14 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.save();
     // Pulse ring
     ctx.globalAlpha = alpha * 0.2 * pulse;
-    ctx.beginPath(); ctx.arc(t.position.x, t.position.y, r + 12 * pulse, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(tp.x, tp.y, r + 12 * pulse, 0, Math.PI * 2);
     ctx.strokeStyle = isHl ? "#fff" : TARGET_COLOR;
     ctx.lineWidth = isHl ? 2 : 1;
     ctx.stroke();
 
     // Main dot
     ctx.globalAlpha = alpha;
-    ctx.beginPath(); ctx.arc(t.position.x, t.position.y, r, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(tp.x, tp.y, r, 0, Math.PI * 2);
     ctx.fillStyle = hasPrim ? TARGET_COLOR : hasSec ? "#e07030" : hasTer ? "#b8783a" : "#601818";
     ctx.fill();
     ctx.strokeStyle = isHl ? "#fff" : "rgba(255,255,255,0.55)";
@@ -324,46 +330,47 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.strokeStyle = "rgba(255,255,255,0.8)";
     ctx.lineWidth = 1.5;
     [-1, 1].forEach((s) => {
-      ctx.beginPath(); ctx.moveTo(t.position.x + s * 15, t.position.y); ctx.lineTo(t.position.x + s * (r + 1), t.position.y); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(t.position.x, t.position.y + s * 15); ctx.lineTo(t.position.x, t.position.y + s * (r + 1)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tp.x + s * 15, tp.y); ctx.lineTo(tp.x + s * (r + 1), tp.y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tp.x, tp.y + s * 15); ctx.lineTo(tp.x, tp.y + s * (r + 1)); ctx.stroke();
     });
 
     // Label
     ctx.fillStyle = "#fff";
     ctx.font = `bold ${isHl ? 13 : 11}px 'JetBrains Mono',monospace`;
-    ctx.fillText(`T${t.id}`, t.position.x + r + 5, t.position.y - 3);
+    ctx.fillText(`T${t.id}`, tp.x + r + 5, tp.y - 3);
 
     // Status badge
     const badge = hasPrim ? "P1" : hasSec ? "P2" : hasTer ? "P3" : "!!";
     const badgeCol = hasPrim ? "#4ade80" : hasSec ? "#fee440" : hasTer ? "#ff9f43" : "#ff4d4d";
-    ctx.fillStyle = "rgba(0,0,0,0.75)"; ctx.fillRect(t.position.x + r + 3, t.position.y + 5, 20, 12);
+    ctx.fillStyle = "rgba(0,0,0,0.75)"; ctx.fillRect(tp.x + r + 3, tp.y + 5, 20, 12);
     ctx.fillStyle = badgeCol; ctx.font = "bold 9px 'JetBrains Mono',monospace";
-    ctx.fillText(badge, t.position.x + r + 5, t.position.y + 15);
+    ctx.fillText(badge, tp.x + r + 5, tp.y + 15);
 
     // Confidence bar
     const bw = 28;
-    ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fillRect(t.position.x - bw / 2, t.position.y + r + 4, bw, 3);
-    ctx.fillStyle = `hsl(${120 * t.confidence},85%,55%)`; ctx.fillRect(t.position.x - bw / 2, t.position.y + r + 4, bw * t.confidence, 3);
+    ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fillRect(tp.x - bw / 2, tp.y + r + 4, bw, 3);
+    ctx.fillStyle = `hsl(${120 * t.confidence},85%,55%)`; ctx.fillRect(tp.x - bw / 2, tp.y + r + 4, bw * t.confidence, 3);
     ctx.restore();
   }
 
   // Agents
   for (const a of agents) {
+    const ap = toPx(a.position);
     const color = AGENT_COLORS[a.id] || "#888";
     const isHl = highlighted === a.id;
     const r = isHl ? 14 : 11;
     ctx.save();
     ctx.shadowColor = color; ctx.shadowBlur = isHl ? 30 : 14;
-    ctx.beginPath(); ctx.arc(a.position.x, a.position.y, r, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(ap.x, ap.y, r, 0, Math.PI * 2);
     ctx.fillStyle = color; ctx.fill();
     if (isHl) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke(); }
     ctx.shadowBlur = 0;
     ctx.fillStyle = "#000"; ctx.font = `bold ${isHl ? 12 : 10}px 'JetBrains Mono',monospace`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(a.id[0], a.position.x, a.position.y);
+    ctx.fillText(a.id[0], ap.x, ap.y);
     ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
     ctx.fillStyle = color; ctx.font = `bold ${isHl ? 13 : 11}px 'JetBrains Mono',monospace`;
-    ctx.fillText(a.id, a.position.x + r + 5, a.position.y - 4);
+    ctx.fillText(a.id, ap.x + r + 5, ap.y - 4);
     ctx.restore();
   }
 }

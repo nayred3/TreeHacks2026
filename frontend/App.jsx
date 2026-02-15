@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { WW, WH, AGENT_COLORS, TARGET_COLOR, REASSIGN_THRESHOLD, STALE_TTL } from "./config.js";
+import { WW, WH, AGENT_COLORS, TARGET_COLOR, REASSIGN_THRESHOLD, STALE_TTL, toPx, toWorld, ROOM_BOUNDS, CM_PER_TICK } from "./config.js";
 import { euclidean, randomWalk } from "./utils.js";
 import { runPriorityAssignment } from "./assignment.js";
 import { drawScene } from "./canvas.js";
@@ -46,15 +46,15 @@ export default function App() {
     const now = Date.now();
     stateRef.current = {
       agents: [
-        { id: "Alice",   position: { x: 100, y: 100 }, vel: { vx:  0.3, vy:  0.2 } },
-        { id: "Bob",     position: { x: 700, y: 90  }, vel: { vx: -0.25, vy:  0.3 } },
-        { id: "Charlie", position: { x: 420, y: 400 }, vel: { vx:  0.15, vy: -0.35 } },
-        { id: "Diana",   position: { x: 130, y: 390 }, vel: { vx:  0.3, vy: -0.15 } },
+        { id: "Alice",   position: { x: -250, y: -150 }, vel: { vx:  1.5, vy:  1.0 } },
+        { id: "Bob",     position: { x:  250, y: -120 }, vel: { vx: -1.2, vy:  1.5 } },
+        { id: "Charlie", position: { x:   50, y:  150 }, vel: { vx:  0.8, vy: -1.8 } },
+        { id: "Diana",   position: { x: -220, y:  120 }, vel: { vx:  1.6, vy: -0.9 } },
       ],
       targets: [
-        { id: 1, position: { x: 250, y: 180 }, vel: { vx:  0.4, vy:  0.2  }, confidence: 0.93, lastSeen: now },
-        { id: 2, position: { x: 580, y: 270 }, vel: { vx: -0.3, vy:  0.25 }, confidence: 0.81, lastSeen: now },
-        { id: 3, position: { x: 400, y: 210 }, vel: { vx:  0.2, vy: -0.4  }, confidence: 0.67, lastSeen: now },
+        { id: 1, position: { x: -120, y: -50 }, vel: { vx:  2.0, vy:  1.0  }, confidence: 0.93, lastSeen: now },
+        { id: 2, position: { x:  180, y:  60 }, vel: { vx: -1.6, vy:  1.2 }, confidence: 0.81, lastSeen: now },
+        { id: 3, position: { x:   20, y:  40 }, vel: { vx:  1.0, vy: -2.0  }, confidence: 0.67, lastSeen: now },
       ],
       prevPrimary: {}, prevSecondary: {}, nextId: 4,
     };
@@ -67,10 +67,11 @@ export default function App() {
     let lastT = performance.now(), tickN = 0;
     const nearestWalkablePos = (p, maxRadius = 20) => {
       if (!wallGrid?.length) return p;
+      const pPx = toPx(p);
       const rows = wallGrid.length;
       const cols = wallGrid[0].length;
-      const c0 = Math.max(0, Math.min(cols - 1, Math.floor(p.x / GRID_SIZE)));
-      const r0 = Math.max(0, Math.min(rows - 1, Math.floor(p.y / GRID_SIZE)));
+      const c0 = Math.max(0, Math.min(cols - 1, Math.floor(pPx.x / GRID_SIZE)));
+      const r0 = Math.max(0, Math.min(rows - 1, Math.floor(pPx.y / GRID_SIZE)));
       if (!wallGrid[r0][c0]) return p;
 
       for (let radius = 1; radius <= maxRadius; radius++) {
@@ -80,7 +81,9 @@ export default function App() {
             const cc = c0 + dc;
             if (rr < 0 || rr >= rows || cc < 0 || cc >= cols) continue;
             if (!wallGrid[rr][cc]) {
-              return { x: cc * GRID_SIZE + GRID_SIZE / 2, y: rr * GRID_SIZE + GRID_SIZE / 2 };
+              const pxX = cc * GRID_SIZE + GRID_SIZE / 2;
+              const pxY = rr * GRID_SIZE + GRID_SIZE / 2;
+              return toWorld(pxX, pxY);
             }
           }
         }
@@ -90,10 +93,11 @@ export default function App() {
 
     const isWalkable = (p) => {
       if (!wallGrid?.length) return true;
+      const pPx = toPx(p);
       const rows = wallGrid.length;
       const cols = wallGrid[0].length;
-      const c = Math.max(0, Math.min(cols - 1, Math.floor(p.x / GRID_SIZE)));
-      const r = Math.max(0, Math.min(rows - 1, Math.floor(p.y / GRID_SIZE)));
+      const c = Math.max(0, Math.min(cols - 1, Math.floor(pPx.x / GRID_SIZE)));
+      const r = Math.max(0, Math.min(rows - 1, Math.floor(pPx.y / GRID_SIZE)));
       return !wallGrid[r][c];
     };
 
@@ -103,7 +107,7 @@ export default function App() {
       if (!wallGrid) return r;
       if (isWalkable(r.pos)) return r;
       const bounce = { pos: { ...basePos }, vel: { vx: -vel.vx, vy: -vel.vy } };
-      const next = randomWalk(bounce.pos, bounce.vel, 0.2);
+      const next = randomWalk(bounce.pos, bounce.vel, CM_PER_TICK);
       if (isWalkable(next.pos)) return next;
       const parked = nearestWalkablePos(basePos);
       return { pos: { ...parked }, vel: { vx: -vel.vx * 0.6, vy: -vel.vy * 0.6 } };
@@ -115,9 +119,9 @@ export default function App() {
       lastT = now; tickN++;
       const s = stateRef.current;
       if (!frozen) {
-        s.agents = s.agents.map(a => { const r = constrainedWalk(a.position, a.vel, 0.5); return { ...a, position: r.pos, vel: r.vel }; });
+        s.agents = s.agents.map(a => { const r = constrainedWalk(a.position, a.vel, CM_PER_TICK); return { ...a, position: r.pos, vel: r.vel }; });
       }
-      s.targets = s.targets.map(t => { const r = constrainedWalk(t.position, t.vel, 0.6); return { ...t, position: r.pos, vel: r.vel, lastSeen: Date.now() }; });
+      s.targets = s.targets.map(t => { const r = constrainedWalk(t.position, t.vel, CM_PER_TICK); return { ...t, position: r.pos, vel: r.vel, lastSeen: Date.now() }; });
       const res = runPriorityAssignment(s.agents, s.targets, s.prevPrimary, s.prevSecondary, wallGrid);
       for (const [tid, aid] of Object.entries(res.primary)) {
         if (s.prevPrimary[tid] && s.prevPrimary[tid] !== aid) {
@@ -138,12 +142,15 @@ export default function App() {
   const onCanvasClick = e => {
     if (!stateRef.current || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const px = e.clientX - rect.left, py = e.clientY - rect.top;
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const clickWorld = toWorld(px, py);
+    const hitRadius = 18;  // cm
     for (const a of stateRef.current.agents) {
-      if (euclidean({ x: px, y: py }, a.position) < 18) { setHL(h => h === a.id ? null : a.id); return; }
+      if (euclidean(clickWorld, a.position) < hitRadius) { setHL(h => h === a.id ? null : a.id); return; }
     }
     for (const t of stateRef.current.targets) {
-      if (euclidean({ x: px, y: py }, t.position) < 16) { setHL(h => h === `t${t.id}` ? null : `t${t.id}`); return; }
+      if (euclidean(clickWorld, t.position) < hitRadius) { setHL(h => h === `t${t.id}` ? null : `t${t.id}`); return; }
     }
     setHL(null);
   };
@@ -151,21 +158,41 @@ export default function App() {
   const spawn = () => {
     const s = stateRef.current; if (!s) return;
     const id = s.nextId++;
-    s.targets.push({ id, position: { x: 50 + Math.random() * 720, y: 30 + Math.random() * 460 },
-      vel: { vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 },
+    const { xMin, xMax, yMin, yMax } = ROOM_BOUNDS;
+    s.targets.push({ id, position: { x: xMin + Math.random() * (xMax - xMin - 50), y: yMin + Math.random() * (yMax - yMin - 50) },
+      vel: { vx: (Math.random() - 0.5) * 5, vy: (Math.random() - 0.5) * 5 },
       confidence: 0.5 + Math.random() * 0.5, lastSeen: Date.now() });
     addEvent(`🔴 T${id} detected — priorities recomputing…`, "spawn");
   };
   const neutralise = () => {
     const s = stateRef.current; if (!s || !s.targets.length) return;
-    const t = s.targets.splice(Math.floor(Math.random() * s.targets.length), 1)[0];
+    const res = runPriorityAssignment(s.agents, s.targets, s.prevPrimary, s.prevSecondary, wallGrid);
+    const { primary } = res;
+    const agentById = Object.fromEntries(s.agents.map(a => [a.id, a]));
+
+    // Neutralise the target in the primary-target–agent pair with smallest distance
+    let toNeutralise = null;
+    let minD = Infinity;
+    for (const t of s.targets) {
+      const aid = primary[t.id];
+      if (!aid) continue;
+      const a = agentById[aid];
+      if (!a) continue;
+      const d = euclidean(t.position, a.position);
+      if (d < minD) { minD = d; toNeutralise = t; }
+    }
+    if (!toNeutralise) return;
+    const idx = s.targets.findIndex(t => t.id === toNeutralise.id);
+    const t = s.targets.splice(idx, 1)[0];
     delete s.prevPrimary[t.id]; delete s.prevSecondary[t.id];
     addEvent(`✅ T${t.id} neutralised`, "remove");
   };
   const scatter = () => {
     const s = stateRef.current; if (!s) return;
-    s.agents  = s.agents.map(a  => ({ ...a,  position: { x: 30 + Math.random() * 760, y: 30 + Math.random() * 460 } }));
-    s.targets = s.targets.map(t => ({ ...t,  position: { x: 30 + Math.random() * 760, y: 30 + Math.random() * 460 }, lastSeen: Date.now() }));
+    const { xMin, xMax, yMin, yMax } = ROOM_BOUNDS;
+    const rnd = () => ({ x: xMin + Math.random() * (xMax - xMin - 50), y: yMin + Math.random() * (yMax - yMin - 50) });
+    s.agents  = s.agents.map(a  => ({ ...a,  position: rnd() }));
+    s.targets = s.targets.map(t => ({ ...t,  position: rnd(), lastSeen: Date.now() }));
     s.prevPrimary = {}; s.prevSecondary = {};
     addEvent("⚡ Scattered — full priority recalculation!", "reassign");
   };
@@ -488,7 +515,7 @@ export default function App() {
                       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
                         <div style={{ width:9, height:9, borderRadius:"50%", background:color, boxShadow:`0 0 6px ${color}` }}/>
                         <span style={{ color, fontWeight:700, fontSize:11 }}>{agent.id}</span>
-                        <span style={{ fontSize:8, color:C.dim, marginLeft:4 }}>pos ({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)})</span>
+                        <span style={{ fontSize:8, color:C.dim, marginLeft:4 }}>pos ({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)}) cm</span>
                         <span style={{ marginLeft:"auto", display:"flex", gap:4 }}>
                           {prList.find(e=>e.role==="primary") && <span style={{ fontSize:8, color:C.green, border:`1px solid ${C.green}50`, borderRadius:3, padding:"1px 5px" }}>P1 ✓</span>}
                           {prList.find(e=>e.role==="secondary") && <span style={{ fontSize:8, color:C.yellow, border:`1px solid ${C.yellow}50`, borderRadius:3, padding:"1px 5px" }}>P2 ~</span>}
@@ -512,7 +539,7 @@ export default function App() {
                                 background: role==="primary"?C.green:role==="secondary"?C.yellow:role==="tertiary"?C.orange:C.dim+"40",
                               }}/>
                             </div>
-                            <span style={{ fontSize:9, color:C.dim, minWidth:36, textAlign:"right" }}>{distance.toFixed(0)}m</span>
+                            <span style={{ fontSize:9, color:C.dim, minWidth:36, textAlign:"right" }}>{distance.toFixed(0)}cm</span>
                             {isAssigned ? (
                               <span style={{ minWidth:30, fontSize:8, fontWeight:700, textAlign:"center",
                                 color:role==="primary"?C.green:role==="secondary"?C.yellow:C.orange,
@@ -614,7 +641,7 @@ export default function App() {
                 </table>
                 <div style={{ marginTop:8, fontSize:9, color:C.dim, lineHeight:1.7 }}>
                   Euclidean mode queues extra targets into P2 then P3 tiers. Selection favors closest agent, then earliest completion.
-                  Pathfinding mode still uses anti-thrash threshold of <span style={{ color:C.yellow }}>{REASSIGN_THRESHOLD}m</span>.
+                  Pathfinding mode still uses anti-thrash threshold of <span style={{ color:C.yellow }}>{REASSIGN_THRESHOLD}cm</span>.
                 </div>
               </div>
             )}
@@ -715,14 +742,14 @@ export default function App() {
                   <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
                     <div style={{ width:8, height:8, borderRadius:"50%", background:color, boxShadow:`0 0 6px ${color}` }}/>
                     <span style={{ color, fontWeight:700, fontSize:11 }}>{agent.id}</span>
-                    <span style={{ marginLeft:"auto", fontSize:8, color:C.dim }}>{agent.position.x.toFixed(0)},{agent.position.y.toFixed(0)}</span>
+                    <span style={{ marginLeft:"auto", fontSize:8, color:C.dim }}>{agent.position.x.toFixed(0)},{agent.position.y.toFixed(0)} cm</span>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:2 }}>
                     <span style={{ fontSize:8, color:C.green, fontWeight:700, minWidth:16 }}>P1</span>
                     {primEntry ? (
                       <>
                         <span style={{ background:TARGET_COLOR, color:"#000", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:2 }}>T{primEntry.targetId}</span>
-                        <span style={{ fontSize:8, color:C.dim }}>{primEntry.distance.toFixed(0)}m</span>
+                        <span style={{ fontSize:8, color:C.dim }}>{primEntry.distance.toFixed(0)}cm</span>
                         <span style={{ marginLeft:"auto", fontSize:8, color:C.green }}>ASSIGNED</span>
                       </>
                     ) : <span style={{ fontSize:8, color:C.dim }}>—</span>}
@@ -732,7 +759,7 @@ export default function App() {
                     {secEntry ? (
                       <>
                         <span style={{ background:TARGET_COLOR, color:"#000", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:2 }}>T{secEntry.targetId}</span>
-                        <span style={{ fontSize:8, color:C.dim }}>{secEntry.distance.toFixed(0)}m</span>
+                        <span style={{ fontSize:8, color:C.dim }}>{secEntry.distance.toFixed(0)}cm</span>
                         <span style={{ marginLeft:"auto", fontSize:8, color:C.yellow }}>SECONDARY</span>
                       </>
                     ) : <span style={{ fontSize:8, color:C.dim }}>—</span>}
@@ -742,7 +769,7 @@ export default function App() {
                     {terEntry ? (
                       <>
                         <span style={{ background:TARGET_COLOR, color:"#000", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:2 }}>T{terEntry.targetId}</span>
-                        <span style={{ fontSize:8, color:C.dim }}>{terEntry.distance.toFixed(0)}m</span>
+                        <span style={{ fontSize:8, color:C.dim }}>{terEntry.distance.toFixed(0)}cm</span>
                         <span style={{ marginLeft:"auto", fontSize:8, color:C.orange }}>TERTIARY</span>
                       </>
                     ) : <span style={{ fontSize:8, color:C.dim }}>—</span>}
@@ -766,7 +793,7 @@ export default function App() {
         <span style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em" }}>ENGINE CONFIG — mirrors assignment_engine.py</span>
         {[
           { label:"Algorithm",     value:"priority_v2_antithrash",     col:C.green },
-          { label:"Reassign Δ",   value:`>${REASSIGN_THRESHOLD}m`,     col:C.yellow },
+          { label:"Reassign Δ",   value:`>${REASSIGN_THRESHOLD}cm`,    col:C.yellow },
           { label:"Stale TTL",    value:`${STALE_TTL/1000}s`,          col:C.purple },
           { label:"Priority",     value:"global P1 + queued P2/P3",     col:C.teal },
           { label:"Always drawn", value:"proximity line per target",    col:C.text },
