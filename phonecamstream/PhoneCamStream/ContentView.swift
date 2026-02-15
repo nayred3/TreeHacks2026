@@ -16,8 +16,8 @@ class AppConfig: ObservableObject {
     @Published var justinPort: String = "5056"
 
     // Stream quality
-    @Published var streamFPS: Double = 5
-    @Published var jpegQuality: Double = 0.5
+    @Published var streamFPS: Double = 10
+    @Published var jpegQuality: Double = 0.35
 
     // Derived helpers
     var posX: Double { Double(positionX) ?? 0.0 }
@@ -200,7 +200,7 @@ struct SetupView: View {
             Section("Stream Settings") {
                 VStack(alignment: .leading) {
                     Text("Frame Rate: \(Int(config.streamFPS)) FPS")
-                    Slider(value: $config.streamFPS, in: 1...15, step: 1)
+                    Slider(value: $config.streamFPS, in: 1...30, step: 1)
                 }
                 VStack(alignment: .leading) {
                     Text("JPEG Quality: \(Int(config.jpegQuality * 100))%")

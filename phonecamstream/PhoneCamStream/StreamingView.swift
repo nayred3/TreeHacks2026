@@ -189,7 +189,7 @@ struct StreamingView: View {
             }
         }
 
-        // 6. Position update loop (10 Hz)
+        // 6. Position update loop (20 Hz for smoother heading)
         positionTask = Task {
             while !Task.isCancelled {
                 // Read latest values from published properties
@@ -202,7 +202,7 @@ struct StreamingView: View {
                     }
                 }
 
-                try? await Task.sleep(nanoseconds: 100_000_000)
+                try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms = 20 Hz
             }
         }
     }

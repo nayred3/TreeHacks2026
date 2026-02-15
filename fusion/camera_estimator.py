@@ -86,7 +86,7 @@ def estimate_position(
     center_x = camera.image_width / 2.0
     offset_px = bbox_cx - center_x
     f_h = focal_length_px(camera.image_width, camera.hfov_deg)
-    angle_offset_rad = math.atan2(offset_px, f_h)
+    angle_offset_rad = math.atan2(-offset_px, f_h)
 
     # --- Step 3: world bearing ---
     heading_rad = math.radians(camera.heading_deg)
@@ -159,7 +159,7 @@ def world_to_bbox(
     f_h = focal_length_px(camera.image_width, camera.hfov_deg)
     f_v = focal_length_px_vertical(camera.image_width, camera.image_height, camera.hfov_deg)
 
-    offset_px = f_h * math.tan(angle_offset)
+    offset_px = -f_h * math.tan(angle_offset)
     center_x = camera.image_width / 2.0 + offset_px
     center_y = camera.image_height / 2.0
 
