@@ -5,6 +5,7 @@
 
 import { euclidean } from "./utils.js";
 import { WW, WH, AGENT_COLORS, TARGET_COLOR, STALE_TTL, toPx } from "./config.js";
+import { MAP_TOP_BEARING } from "./liveDemo.js";
 import { GRID_SIZE } from "./pathfinding.js";
 
 /**
@@ -367,10 +368,13 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const isHl = highlighted === a.id;
     const r = isHl ? 14 : 11;
 
-    // Heading: a.facing (rad, smoothed) > fusion heading (deg) > velocity
+    // Heading: a.facing (rad) > headingFromNorth (deg from north) > fusion heading > velocity
     let angleRad;
     if (a.facing != null && typeof a.facing === "number") {
       angleRad = a.facing;
+    } else if (a.headingFromNorth != null && typeof a.headingFromNorth === "number") {
+      // Heading = degrees from geographic north. Map top = 169° (south).
+      angleRad = ((a.headingFromNorth - MAP_TOP_BEARING - 90) * Math.PI) / 180;
     } else if (a.heading != null && typeof a.heading === "number") {
       angleRad = (a.heading * Math.PI) / 180;
     } else if (a.vel && (a.vel.vx !== 0 || a.vel.vy !== 0)) {

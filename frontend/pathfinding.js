@@ -11,7 +11,7 @@ export { GRID_SIZE };
 export const WALL_LAYOUT_OPTIONS = [
   { id: "corridor", label: "7 rooms" },
   { id: "simple", label: "1 room" },
-  { id: "two-room", label: "2-room split" },
+  { id: "two-room", label: "2 rooms" },
   { id: "grid", label: "4 rooms" },
 ];
 
