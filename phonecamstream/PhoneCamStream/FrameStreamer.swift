@@ -1,8 +1,9 @@
 import AVFoundation
 import UIKit
+import CoreVideo
 
-/// Converts CMSampleBuffer → JPEG and HTTP-POSTs it to the target host
-/// (Logan's Mac) for YOLO person detection.
+/// Converts CVPixelBuffer → JPEG and HTTP-POSTs it to the target host
+/// for YOLO person detection.
 class FrameStreamer: ObservableObject {
 
     @Published var isConnected = false
@@ -12,7 +13,7 @@ class FrameStreamer: ObservableObject {
     private var targetURL: URL?
     private var cameraID: String = ""
     private var jpegQuality: CGFloat = 0.5
-    private var isSending = false                   // simple gate
+    private var isSending = false
     private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
     private var urlSession: URLSession?
 
@@ -35,9 +36,9 @@ class FrameStreamer: ObservableObject {
         self.urlSession = URLSession(configuration: cfg)
     }
 
-    /// Accept a raw sample buffer, encode as JPEG, and POST to the server.
-    /// Skips if a previous send is still in flight (non-blocking).
-    func sendFrame(_ sampleBuffer: CMSampleBuffer, completion: @escaping (Bool) -> Void) {
+    /// Accept a pixel buffer (from ARKit), encode as JPEG, and POST.
+    /// Skips if a previous send is still in flight.
+    func sendFrame(_ pixelBuffer: CVPixelBuffer, completion: @escaping (Bool) -> Void) {
         guard !isSending,
               let url = targetURL,
               let session = urlSession else {
@@ -45,8 +46,7 @@ class FrameStreamer: ObservableObject {
             return
         }
 
-        // Convert CMSampleBuffer → JPEG Data
-        guard let jpegData = encodeJPEG(sampleBuffer) else {
+        guard let jpegData = encodeJPEG(pixelBuffer) else {
             completion(false)
             return
         }
@@ -84,8 +84,7 @@ class FrameStreamer: ObservableObject {
 
     // MARK: - JPEG Encoding
 
-    private func encodeJPEG(_ sampleBuffer: CMSampleBuffer) -> Data? {
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return nil }
+    private func encodeJPEG(_ pixelBuffer: CVPixelBuffer) -> Data? {
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
         guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return nil }
         let uiImage = UIImage(cgImage: cgImage)
