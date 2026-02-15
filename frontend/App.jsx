@@ -449,7 +449,7 @@ export default function App() {
             const primEntry = prList.find(e => e.role === "primary");
             return (
               <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
-                <div style={{ background:"#0d2030", border:`1px solid ${C.border}`, borderRadius:6, flex:1, minHeight:180, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:10 }}>
+                <div style={{ background:"#0d2030", border:`1px solid ${C.border}`, borderRadius:6, height:180, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:10 }}>
                   {agent.id} Live Camera View
                 </div>
                 <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
@@ -769,7 +769,7 @@ export default function App() {
             const primEntry = prList.find(e => e.role === "primary");
             return (
               <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
-                <div style={{ background:"#0d2030", border:`1px solid ${C.border}`, borderRadius:6, flex:1, minHeight:180, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:10 }}>
+                <div style={{ background:"#0d2030", border:`1px solid ${C.border}`, borderRadius:6, height:180, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:10 }}>
                   {agent.id} Live Camera View
                 </div>
                 <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
