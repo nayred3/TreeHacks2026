@@ -74,8 +74,8 @@ export default function App() {
   }, []);
 
   const DEMO_AGENTS = [
-    { id: "Justin", position: { x: -255, y: 23 }, vel: { vx: 1.5, vy: 1.0 } },
-    { id: "Logan", position: { x: 308, y: -252 }, vel: { vx: -1.2, vy: 1.5 } },
+    { id: "Alice", position: { x: -255, y: 23 }, vel: { vx: 1.5, vy: 1.0 } },
+    { id: "Bob", position: { x: 308, y: -252 }, vel: { vx: -1.2, vy: 1.5 } },
   ];
   const DEMO_TARGETS = [
     { id: 1, position: { x: 26, y: -69 }, vel: { vx: 0.5, vy: 0.5 }, confidence: 0.93 },
@@ -190,8 +190,8 @@ export default function App() {
 
     function runLiveDemo1Script(s, dtSec) {
       const script = liveDemo1ScriptRef.current;
-      const bob = s.agents.find(a => a.id === "Logan");
-      const alice = s.agents.find(a => a.id === "Justin");
+      const bob = s.agents.find(a => a.id === "Bob");
+      const alice = s.agents.find(a => a.id === "Alice");
       if (!bob || !alice) return;
 
       if (script.phase === 0) {
@@ -429,8 +429,8 @@ export default function App() {
     const alicePos = feetToFrontendPos(6, 9);
     const now = Date.now();
     stateRef.current.agents = [
-      { id: "Logan", position: bobPos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
-      { id: "Justin", position: alicePos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
+      { id: "Bob", position: bobPos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
+      { id: "Alice", position: alicePos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
     ];
     stateRef.current.targets = [];
     stateRef.current.prevPrimary = {};
