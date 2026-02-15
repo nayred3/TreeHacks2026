@@ -20,10 +20,6 @@ const FRONTEND_HEIGHT_CM = 688;
 /** Map top (upward direction) = 174° south of geographic north. Phone/camera headings are degrees from perfect north. */
 export const MAP_TOP_BEARING = 174;
 
-/** Demo duration in seconds for camera movement data. */
-const DEMO_DURATION_SEC = 120;
-const ROOM_MARGIN = 1;
-
 /**
  * Convert fusion position (meters, 0–12 x 0–10) to frontend (cm, center origin).
  */
@@ -33,91 +29,38 @@ export function fusionToFrontendPos(mx, my) {
   return { x: x_cm, y: y_cm };
 }
 
-/**
- * Seeded pseudo-random for reproducible target positions.
- */
-function seededRandom(seed) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
-
-/**
- * Get camera/phone position and heading at time t (0–120 sec). 2 minutes of sample data.
- * Coordinates in meters; heading = direction phone is facing, degrees from perfect north (0°=north, 90°=east).
- */
-function getCameraStateAtTime(camId, t) {
-  const T = DEMO_DURATION_SEC;
-  const roomW = 12;
-  const roomH = 10;
-  const margin = 1;
-  const pi = Math.PI;
-
-  switch (camId) {
-    case "cam_1": {
-      const phase = (t / T) * 2 * pi;
-      const mx = 2 + 2 * Math.sin(phase * 0.7);
-      const my = 2 + 1.5 * Math.cos(phase * 0.5);
-      const heading = (90 + 40 * Math.sin(phase * 0.3)) % 360;
-      return { position: [mx, my], headingFromNorth: heading };
-    }
-    case "cam_2": {
-      const phase = (t / T) * 2 * pi;
-      const mx = roomW - 2 - 1.5 * Math.cos(phase * 0.6);
-      const my = 2 + 2 * Math.sin(phase * 0.4);
-      const heading = (180 + 35 * Math.cos(phase * 0.25)) % 360;
-      return { position: [mx, my], headingFromNorth: heading };
-    }
-    case "cam_3": {
-      const phase = (t / T) * 2 * pi;
-      const mx = roomW - 2 - 2 * Math.sin(phase * 0.55);
-      const my = roomH - 2 - 1.5 * Math.cos(phase * 0.45);
-      const heading = (270 + 30 * Math.sin(phase * 0.35)) % 360;
-      return { position: [mx, my], headingFromNorth: heading };
-    }
-    case "cam_4": {
-      const phase = (t / T) * 2 * pi;
-      const mx = 2 + 1.5 * Math.cos(phase * 0.5);
-      const my = roomH - 2 - 2 * Math.sin(phase * 0.6);
-      const heading = (0 + 40 * Math.cos(phase * 0.3)) % 360;
-      return { position: [mx, my], headingFromNorth: heading };
-    }
-    default:
-      return { position: [6, 5], headingFromNorth: 90 };
-  }
-}
-
-/**
- * One target: appears at random, stays stationary, then teleports every ~18 sec.
- */
-function getTargetPositionAtTime(t) {
-  const teleportInterval = 18;
-  const slot = Math.floor(t / teleportInterval);
-  const seed = slot * 12345.6789;
-  const mx = ROOM_MARGIN + seededRandom(seed) * (12 - 2 * ROOM_MARGIN);
-  const my = ROOM_MARGIN + seededRandom(seed + 111) * (10 - 2 * ROOM_MARGIN);
+/** Convert frontend position (cm, center origin) to fusion (meters, 0–12 x 0–10). */
+function frontendToFusionPos(x_cm, y_cm) {
+  const mx = FUSION_CENTER_X + x_cm * (FUSION_ROOM_X[1] - FUSION_ROOM_X[0]) / FRONTEND_WIDTH_CM;
+  const my = FUSION_CENTER_Y + y_cm * (FUSION_ROOM_Y[1] - FUSION_ROOM_Y[0]) / FRONTEND_HEIGHT_CM;
   return [mx, my];
 }
 
+/** Live Demo: fixed agent positions (frontend cm, center origin). */
+const AGENT_POSITIONS = [
+  { id: "cam_1", x: 6.0833, y: 19, heading: 90 },
+  { id: "cam_2", x: 50, y: 5, heading: 180 },
+];
+
+/** Live Demo: stationary target (frontend cm, center origin). */
+const TARGET_POSITION = { x: 36, y: 11 };
+
 /**
  * Generate mock fusion data for Live Demo when fusion server is unavailable.
- * 4 cameras move over 2 minutes (coords + heading from north). One target appears,
- * stays stationary, then teleports to random locations periodically.
+ * 2 agents at fixed positions, 1 stationary target.
  */
 function getMockFusionData(now = Date.now()) {
-  const t = (now / 1000) % DEMO_DURATION_SEC;
-  const camIds = ["cam_1", "cam_2", "cam_3", "cam_4"];
-
-  const cameras = camIds.map((id) => {
-    const s = getCameraStateAtTime(id, t);
+  const cameras = AGENT_POSITIONS.map((a) => {
+    const fusionPos = frontendToFusionPos(a.x, a.y);
     return {
-      id,
-      position: s.position,
-      heading: s.headingFromNorth,
-      headingFromNorth: s.headingFromNorth,
+      id: a.id,
+      position: fusionPos,
+      heading: a.heading,
+      headingFromNorth: a.heading,
     };
   });
 
-  const targetPos = getTargetPositionAtTime(t);
+  const targetPos = frontendToFusionPos(TARGET_POSITION.x, TARGET_POSITION.y);
   const targets = [
     {
       id: 1,
@@ -134,7 +77,7 @@ function getMockFusionData(now = Date.now()) {
       t: now,
       fused_tracks: targets,
       camera_positions: Object.fromEntries(
-        cameras.map((c) => [c.id, { position: c.position, heading: c.headingFromNorth }])
+        cameras.map((c) => [c.id, { position: c.position, heading: c.heading }])
       ),
     }],
   };

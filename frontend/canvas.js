@@ -4,7 +4,7 @@
  */
 
 import { euclidean } from "./utils.js";
-import { WW, WH, AGENT_COLORS, TARGET_COLOR, STALE_TTL, toPx } from "./config.js";
+import { WW, WH, AGENT_COLORS, TARGET_COLOR, STALE_TTL, toPx, formatDistanceFeet } from "./config.js";
 import { MAP_TOP_BEARING } from "./liveDemo.js";
 import { GRID_SIZE } from "./pathfinding.js";
 
@@ -206,7 +206,11 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WW, y); ctx.stroke();
   }
 
-  const { primary, secondary, tertiary, agentSecondary, proximity } = result;
+  const { primary, secondary, tertiary, agentSecondary, proximity, matrix } = result;
+  const pathDist = (tid, aid) => matrix?.byTarget?.[tid]?.[aid] ?? euclidean(
+    targets.find(x => x.id === tid)?.position ?? { x: 0, y: 0 },
+    agents.find(x => x.id === aid)?.position ?? { x: 0, y: 0 }
+  );
 
   // Coverage zones (positions in meters; convert to px for drawing)
   if (showZones) {
@@ -246,7 +250,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.globalAlpha = 0.6;
     ctx.fillStyle = color;
     ctx.font = "9px 'Inter','Segoe UI',system-ui,sans-serif";
-    ctx.fillText(`near · ${euclidean(t.position, a.position).toFixed(0)}cm`, mp.x + 3, mp.y + 14);
+    ctx.fillText(`near · ${formatDistanceFeet(pathDist(t.id, proxId))} ft`, mp.x + 3, mp.y + 14);
     ctx.restore();
   }
 
@@ -257,7 +261,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     if (!t || !a) continue;
     const isHl = highlighted === aId || highlighted === `t${t.id}`;
     const color = AGENT_COLORS[aId] || "#888";
-    const d = euclidean(t.position, a.position);
+    const d = pathDist(tid, aId);
     const tp = toPx(t.position), ap = toPx(a.position);
     ctx.save();
     ctx.globalAlpha = isHl ? 0.8 : 0.3;
@@ -270,7 +274,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.globalAlpha = isHl ? 0.95 : 0.45;
     ctx.fillStyle = color;
     ctx.font = "9px 'Inter','Segoe UI',system-ui,sans-serif";
-    ctx.fillText(`P2·${d.toFixed(0)}cm`, mp2.x + 3, mp2.y + 10);
+    ctx.fillText(`P2·${formatDistanceFeet(d)} ft`, mp2.x + 3, mp2.y + 10);
     ctx.restore();
   }
 
@@ -281,7 +285,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     if (!t || !a) continue;
     const isHl = highlighted === aId || highlighted === `t${t.id}`;
     const color = AGENT_COLORS[aId] || "#888";
-    const d = euclidean(t.position, a.position);
+    const d = pathDist(+tidStr, aId);
     const tp = toPx(t.position), ap = toPx(a.position);
     ctx.save();
     ctx.globalAlpha = isHl ? 0.75 : 0.25;
@@ -294,7 +298,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.globalAlpha = isHl ? 0.8 : 0.35;
     ctx.fillStyle = color;
     ctx.font = "9px 'Inter','Segoe UI',system-ui,sans-serif";
-    ctx.fillText(`P3·${d.toFixed(0)}cm`, mp3.x + 3, mp3.y + 18);
+    ctx.fillText(`P3·${formatDistanceFeet(d)} ft`, mp3.x + 3, mp3.y + 18);
     ctx.restore();
   }
 
@@ -305,7 +309,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     if (!t || !a) continue;
     const isHl = highlighted === aId || highlighted === `t${t.id}`;
     const color = AGENT_COLORS[aId] || "#888";
-    const d = euclidean(t.position, a.position);
+    const d = pathDist(+tidStr, aId);
     const tp = toPx(t.position), ap = toPx(a.position);
     ctx.save();
     ctx.globalAlpha = isHl ? 1 : 0.68;
@@ -320,7 +324,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.globalAlpha = isHl ? 1 : 0.85;
     ctx.fillStyle = color;
     ctx.font = "bold 10px 'Inter','Segoe UI',system-ui,sans-serif";
-    ctx.fillText(`P1·${d.toFixed(0)}cm`, mp1.x + 3, mp1.y - 4);
+    ctx.fillText(`P1·${formatDistanceFeet(d)} ft`, mp1.x + 3, mp1.y - 4);
     ctx.restore();
   }
 

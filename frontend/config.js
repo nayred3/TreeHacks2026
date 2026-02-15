@@ -61,3 +61,8 @@ export const STALE_TTL = 10000;
 export const TICK_MS = 50;
 export const CM_PER_SEC = 50;
 export const CM_PER_TICK = CM_PER_SEC * (TICK_MS / 1000);
+
+/** Convert cm to feet and format with 2 decimal places (for pathfinding distance display). */
+export function formatDistanceFeet(cm) {
+  return (cm / 30.48).toFixed(2);
+}

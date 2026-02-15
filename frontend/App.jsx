@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { WW, WH, AGENT_COLORS, TARGET_COLOR, REASSIGN_THRESHOLD, STALE_TTL, CAM_STREAM_URLS, toPx, toWorld, ROOM_BOUNDS, CM_PER_TICK } from "./config.js";
+import { WW, WH, AGENT_COLORS, TARGET_COLOR, REASSIGN_THRESHOLD, STALE_TTL, CAM_STREAM_URLS, toPx, toWorld, ROOM_BOUNDS, CM_PER_TICK, formatDistanceFeet } from "./config.js";
 import { euclidean, randomWalk } from "./utils.js";
 import { runPriorityAssignment } from "./assignment.js";
 import { drawScene } from "./canvas.js";
@@ -649,7 +649,7 @@ export default function App() {
                                 background: role==="primary"?C.green:role==="secondary"?C.gold:role==="tertiary"?C.orange:C.dim+"40",
                               }}/>
                             </div>
-                            <span style={{ fontSize:11, color:C.dim, minWidth:36, textAlign:"right" }}>{distance.toFixed(0)}cm</span>
+                            <span style={{ fontSize:11, color:C.dim, minWidth:44, textAlign:"right" }}>{formatDistanceFeet(distance)} ft</span>
                             {isAssigned ? (
                               <span style={{ minWidth:30, fontSize:10, fontWeight:600, textAlign:"center",
                                 color:role==="primary"?C.green:role==="secondary"?C.gold:C.orange,
@@ -675,7 +675,7 @@ export default function App() {
             {tab === "matrix" && (
               <div>
                 <div style={{ fontSize:11, color:C.dim, marginBottom:8, lineHeight:1.6 }}>
-                  Distance matrix = raw assignment computation. Rows are targets, columns are agents, and every cell is the live metre distance recomputed each tick.
+                  Distance matrix = pathfinding distance (ft). Rows are targets, columns are agents, recomputed each tick.
                   <span style={{ color:C.green }}> Green✓</span> = P1, <span style={{ color:C.gold }}>Gold~</span> = P2, <span style={{ color:C.orange }}>Orange·</span> = P3, <span style={{ color:C.cyan }}>Cyan●</span> = closest-but-not-assigned.
                 </div>
                 <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
@@ -731,7 +731,7 @@ export default function App() {
                                 fontSize:11,
                                 opacity: focusMatch ? 1 : 0.28,
                               }}>
-                                {isProx?"●":""}{d.toFixed(0)}{isPrim?"✓":isSec?"~":isTer?"·":""}
+                                {isProx?"●":""}{formatDistanceFeet(d)}{isPrim?"✓":isSec?"~":isTer?"·":""}
                               </td>
                             );
                           })}
@@ -751,7 +751,7 @@ export default function App() {
                 </table>
                 <div style={{ marginTop:8, fontSize:11, color:C.dim, lineHeight:1.7 }}>
                   Euclidean mode queues extra targets into P2 then P3 tiers. Selection favors closest agent, then earliest completion.
-                  Pathfinding mode still uses anti-thrash threshold of <span style={{ color:C.gold }}>{REASSIGN_THRESHOLD}cm</span>.
+                  Pathfinding mode still uses anti-thrash threshold of <span style={{ color:C.gold }}>{formatDistanceFeet(REASSIGN_THRESHOLD)} ft</span>.
                 </div>
               </div>
             )}
@@ -882,13 +882,13 @@ export default function App() {
                       <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Primary</div>
                       <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
                       <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Target T${primEntry.targetId}` : "—"}</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Distance: ${primEntry.distance.toFixed(0)} cm` : ""}</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Distance: ${formatDistanceFeet(primEntry.distance)} ft` : ""}</div>
                     </div>
                     <div>
                       <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Secondary</div>
                       <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
                       <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Target T${secEntry.targetId}` : "—"}</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Distance: ${secEntry.distance.toFixed(0)} cm` : ""}</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Distance: ${formatDistanceFeet(secEntry.distance)} ft` : ""}</div>
                     </div>
                   </div>
                 </div>
