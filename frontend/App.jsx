@@ -29,6 +29,7 @@ export default function App() {
   const [logFilter, setLogFilter] = useState("all");
   const [wallGrid, setWallGrid]         = useState(null);
   const [wallLayout, setWallLayout]     = useState(null);
+  const [isLiveDemo, setIsLiveDemo]     = useState(false);
   const [wallsDropdownOpen, setWallsDropdownOpen] = useState(false);
   const wallsDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -202,11 +203,11 @@ export default function App() {
     if (!file) return;
     const img = new Image();
     img.onload = () => {
-      // Convert image → raw grid → wallLayout → pathfinding grid (same pipeline as preset walls)
       const rawGrid = extractWallGrid(img, WW, WH);
       const layout = gridToWallLayout(rawGrid);
       setWallLayout(layout);
       setWallGrid(wallLayoutToGrid(layout, WW, WH));
+      setIsLiveDemo(false);
       if (stateRef.current) { stateRef.current.prevPrimary = {}; stateRef.current.prevSecondary = {}; }
       addEvent("🏗 Schematic loaded — wall-aware pathfinding active", "system");
     };
@@ -216,6 +217,7 @@ export default function App() {
   const clearSchematic = () => {
     setWallLayout(null);
     setWallGrid(null);
+    setIsLiveDemo(false);
     if (stateRef.current) { stateRef.current.prevPrimary = {}; stateRef.current.prevSecondary = {}; }
     addEvent("🏗 Schematic cleared — euclidean distances restored", "system");
   };
@@ -224,6 +226,7 @@ export default function App() {
     const layout = createPresetWallLayout(WW, WH, layoutType);
     setWallLayout(layout);
     setWallGrid(wallLayoutToGrid(layout, WW, WH));
+    setIsLiveDemo(layoutType === "dual-vertical");
     if (stateRef.current) {
       stateRef.current.prevPrimary = {};
       stateRef.current.prevSecondary = {};
@@ -343,32 +346,36 @@ export default function App() {
           <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em", marginTop:2 }}>DISTANCE-BASED PRIORITY</div>
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
-          {[
-            { label: paused ? "▶ RESUME" : "⏸ PAUSE",  onClick: () => setPaused(p=>!p), active: paused, ac: C.green },
-            { label: frozen ? "▶ UNFREEZE" : "⬛ FREEZE", onClick: () => { setFrozen(f=>!f); addEvent(frozen?"▶ Moving":"⬛ Frozen","system"); }, active: frozen, ac: C.purple },
-            { label: "◎ ZONES", onClick: () => setZones(z=>!z), active: showZones, ac: C.purple },
-          ].map(b => (
-            <button key={b.label} onClick={b.onClick} style={{
-              background: b.active ? "#120e1e" : "#0e1620",
-              border: `1px solid ${b.active ? b.ac + "80" : C.border}`,
-              color: b.active ? b.ac : C.dim,
-              padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit",
-            }}>{b.label}</button>
-          ))}
-          <button onClick={spawn} style={{ background:"#180e0e", border:`1px solid #4a1010`, color:"#ff6b6b", padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊕ SPAWN</button>
-          <button onClick={neutralise} style={{ background:"#0a160e", border:`1px solid #1a4020`, color:C.green, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊘ NEUTRALISE</button>
-          <button onClick={scatter} style={{ background:"#12100a", border:`1px solid #3a3010`, color:C.yellow, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⚡ SCATTER</button>
+          {(wallLayout || wallGrid) && !isLiveDemo && (
+            <>
+              {[
+                { label: paused ? "▶ RESUME" : "⏸ PAUSE",  onClick: () => setPaused(p=>!p), active: paused, ac: C.green },
+                { label: frozen ? "▶ UNFREEZE" : "⬛ FREEZE", onClick: () => { setFrozen(f=>!f); addEvent(frozen?"▶ Moving":"⬛ Frozen","system"); }, active: frozen, ac: C.purple },
+                { label: "◎ ZONES", onClick: () => setZones(z=>!z), active: showZones, ac: C.purple },
+              ].map(b => (
+                <button key={b.label} onClick={b.onClick} style={{
+                  background: b.active ? "#120e1e" : "#0e1620",
+                  border: `1px solid ${b.active ? b.ac + "80" : C.border}`,
+                  color: b.active ? b.ac : C.dim,
+                  padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit",
+                }}>{b.label}</button>
+              ))}
+              <button onClick={spawn} style={{ background:"#180e0e", border:`1px solid #4a1010`, color:"#ff6b6b", padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊕ SPAWN</button>
+              <button onClick={neutralise} style={{ background:"#0a160e", border:`1px solid #1a4020`, color:C.green, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊘ NEUTRALISE</button>
+              <button onClick={scatter} style={{ background:"#12100a", border:`1px solid #3a3010`, color:C.yellow, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⚡ SCATTER</button>
+            </>
+          )}
           <button onClick={() => addPresetWalls("dual-vertical")} style={{
             background:"#1a1525", border:`1px solid ${C.purple}80`, color:C.purple,
             padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit",
-          }}>EXAMPLE SIMULATION</button>
+          }}>LIVE DEMO</button>
           <div ref={wallsDropdownRef} style={{ position:"relative" }}>
             <button onClick={() => setWallsDropdownOpen(o => !o)} style={{
               background: wallsDropdownOpen ? "#1a1f2e" : "#13161f", border:`1px solid ${C.orange}80`, color:C.orange,
               padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit",
               display:"flex", alignItems:"center", gap:6,
             }}>
-              ADD WALLS ▾
+              SAMPLE SIMULATIONS ▾
             </button>
             {wallsDropdownOpen && (
               <div style={{
@@ -400,27 +407,7 @@ export default function App() {
             boxShadow:`0 0 16px ${C.teal}55`,
             fontFamily:"inherit",
           }}> LOAD SCHEMATIC</button>
-          {wallLayout && <button onClick={clearSchematic} style={{ background:"#180e0e", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
-          <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:4, padding:"6px 10px", fontSize:9, color:C.dim, display:"flex", alignItems:"center", gap:6 }}>
-            <span style={{ color:paused?C.orange:C.green, animation:paused?"none":"pulse 1.5s infinite" }}>●</span>
-            {String(tick).padStart(4,"0")} <span style={{ color:C.dim }}>|</span> <span style={{ color:rCount?C.yellow:C.dim }}>↩{rCount}</span>
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:4, background:"#0b121c", border:`1px solid ${C.border}`, borderRadius:4, padding:"5px 6px" }}>
-            <span style={{ fontSize:8, color:C.dim, letterSpacing:"0.08em" }}>VIEW</span>
-            {[
-              { id:"priority", lbl:"P" },
-              { id:"matrix", lbl:"M" },
-              { id:"json", lbl:"J" },
-              { id:"log", lbl:"L" },
-            ].map((v) => (
-              <button key={v.id} type="button" onClick={() => setTab(v.id)} style={{
-                background: tab === v.id ? "#123049" : "#0a111b",
-                border:`1px solid ${tab === v.id ? C.teal+"80" : C.border}`,
-                color: tab === v.id ? C.teal : C.dim,
-                minWidth:22, height:20, borderRadius:3, cursor:"pointer", fontSize:9, fontFamily:"inherit",
-              }}>{v.lbl}</button>
-            ))}
-          </div>
+          {(wallLayout || wallGrid) && <button onClick={clearSchematic} style={{ background:"#180e0e", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
         </div>
       </div>
 
@@ -449,28 +436,61 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Main grid ── */}
-      <div style={{ display:"grid", gridTemplateColumns:`${WW}px 1fr`, gap:12, alignItems:"start" }}>
+      {/* ── Main layout: left cameras | center (map + recap) | right cameras ── */}
+      <div style={{ maxWidth:"100%", overflowX:"auto" }}>
+      <div style={{ display:"flex", gap:1, justifyContent:"center", alignItems:"stretch", minWidth:"min-content" }}>
 
-        {/* Canvas column */}
-        <div>
-          <canvas ref={canvasRef} onClick={onCanvasClick}
-            style={{ display:"block", width:WW, height:WH, border:`1px solid ${C.border}`, borderRadius:6, cursor:"crosshair" }}/>
-          <div style={{ display:"flex", gap:10, marginTop:8, padding:"7px 10px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, flexWrap:"wrap" }}>
-            <span style={{ fontSize:9, color:C.dim }}>CLICK TO HIGHLIGHT:</span>
-            {agents.map(a => (
-              <div key={a.id} onClick={() => setHL(h => h === a.id ? null : a.id)}
-                style={{ display:"flex", alignItems:"center", gap:5, cursor:"pointer", opacity:hl && hl!==a.id?0.35:1, transition:"opacity 0.2s" }}>
-                <div style={{ width:8, height:8, borderRadius:"50%", background:AGENT_COLORS[a.id], boxShadow:`0 0 6px ${AGENT_COLORS[a.id]}` }}/>
-                <span style={{ fontSize:9, color:hl===a.id?AGENT_COLORS[a.id]:C.text }}>{a.id}</span>
+        {/* Left column: Agent 1 & 2 camera views */}
+        <div style={{ display:"flex", flexDirection:"column", gap:8, width:200, minWidth:160, flexShrink:1 }}>
+          {agents.slice(0, 2).map(agent => {
+            const color = AGENT_COLORS[agent.id] || "#888";
+            const isHl = hl === agent.id;
+            const prList = result.agentPriorities[agent.id] || [];
+            const primEntry = prList.find(e => e.role === "primary");
+            return (
+              <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
+                <div style={{ background:"#0d2030", border:`1px solid ${C.border}`, borderRadius:6, flex:1, minHeight:280, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:10 }}>
+                  {agent.id} Live Camera View
+                </div>
+                <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
+                  style={{ marginTop:6, padding:8, background:isHl?"#0e1825":C.panel, border:`1px solid ${isHl?color:C.border}`, borderRadius:5, cursor:"pointer" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                    <div style={{ width:8, height:8, borderRadius:"50%", background:color }}/>
+                    <span style={{ color, fontWeight:700, fontSize:11 }}>{agent.id}</span>
+                  </div>
+                  <div style={{ fontSize:8, color:C.dim, marginBottom:4 }}>{agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)} cm</div>
+                  <div style={{ fontSize:9 }}>
+                    {primEntry ? <span style={{ color:C.green }}>P1 T{primEntry.targetId} {primEntry.distance.toFixed(0)}cm</span> : <span style={{ color:C.dim }}>P1 —</span>}
+                  </div>
+                  <div style={{ fontSize:9, color:C.dim }}>P2 — · P3 —</div>
+                  <div style={{ fontSize:8, color:C.green, marginTop:4 }}>ASSIGNED</div>
+                </div>
               </div>
-            ))}
-            <span style={{ fontSize:9, color:C.dim, marginLeft:"auto" }}>or click target crosshair</span>
-          </div>
+            );
+          })}
         </div>
 
-        {/* Right panel */}
-        <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+        {/* Center column: Live map + Recap (reduced) */}
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12, flexShrink:0, transform:"scale(0.78)", transformOrigin:"top center" }}>
+          {/* Live map */}
+          <div>
+            <canvas ref={canvasRef} onClick={onCanvasClick}
+              style={{ display:"block", width:WW, height:WH, border:`1px solid ${C.border}`, borderRadius:6, cursor:"crosshair" }}/>
+            <div style={{ display:"flex", gap:10, marginTop:8, padding:"7px 10px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, flexWrap:"wrap" }}>
+              <span style={{ fontSize:9, color:C.dim }}>CLICK TO HIGHLIGHT:</span>
+              {agents.map(a => (
+                <div key={a.id} onClick={() => setHL(h => h === a.id ? null : a.id)}
+                  style={{ display:"flex", alignItems:"center", gap:5, cursor:"pointer", opacity:hl && hl!==a.id?0.35:1, transition:"opacity 0.2s" }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:AGENT_COLORS[a.id], boxShadow:`0 0 6px ${AGENT_COLORS[a.id]}` }}/>
+                  <span style={{ fontSize:9, color:hl===a.id?AGENT_COLORS[a.id]:C.text }}>{a.id}</span>
+                </div>
+              ))}
+              <span style={{ fontSize:9, color:C.dim, marginLeft:"auto" }}>or click target crosshair</span>
+            </div>
+          </div>
+
+          {/* Recap section */}
+          <div style={{ width:WW + 24, display:"flex", flexDirection:"column", gap:0 }}>
 
           {/* Summary row */}
           <div style={{ display:"flex", background:C.panel, border:`1px solid ${C.border}`, borderRadius:"6px 6px 0 0", borderBottom:"none" }}>
@@ -497,7 +517,7 @@ export default function App() {
           </div>
 
           {/* Tab body */}
-          <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderTop:"none", borderRadius:"0 0 6px 6px", padding:12, minHeight:290, maxHeight:370, overflow:"auto", position:"relative", zIndex:1 }}>
+          <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderTop:"none", borderRadius:"0 0 6px 6px", padding:12, minHeight:200, maxHeight:260, overflow:"auto", position:"relative", zIndex:1 }}>
 
             {/* PRIORITY TAB */}
             {tab === "priority" && (
@@ -729,67 +749,45 @@ export default function App() {
             )}
           </div>
 
-          {/* ── Per-agent cards ── */}
-          <div style={{ marginTop:10, display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
-            {agents.map(agent => {
-              const color  = AGENT_COLORS[agent.id] || "#888";
-              const isHl   = hl === agent.id;
-              const prList = result.agentPriorities[agent.id] || [];
-              const primEntry = prList.find(e => e.role === "primary");
-              const secEntry  = prList.find(e => e.role === "secondary");
-              const terEntry  = prList.find(e => e.role === "tertiary");
-              return (
-                <div key={agent.id} onClick={() => setHL(h => h === agent.id ? null : agent.id)}
-                  style={{ background:isHl?"#0e1825":C.panel, border:`1px solid ${isHl?color:C.border}`,
-                    borderRadius:5, padding:"8px 10px", cursor:"pointer",
-                    boxShadow:isHl?`0 0 12px ${color}30`:"none", transition:"all 0.2s" }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
-                    <div style={{ width:8, height:8, borderRadius:"50%", background:color, boxShadow:`0 0 6px ${color}` }}/>
-                    <span style={{ color, fontWeight:700, fontSize:11 }}>{agent.id}</span>
-                    <span style={{ marginLeft:"auto", fontSize:8, color:C.dim }}>{agent.position.x.toFixed(0)},{agent.position.y.toFixed(0)} cm</span>
-                  </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:2 }}>
-                    <span style={{ fontSize:8, color:C.green, fontWeight:700, minWidth:16 }}>P1</span>
-                    {primEntry ? (
-                      <>
-                        <span style={{ background:TARGET_COLOR, color:"#000", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:2 }}>T{primEntry.targetId}</span>
-                        <span style={{ fontSize:8, color:C.dim }}>{primEntry.distance.toFixed(0)}cm</span>
-                        <span style={{ marginLeft:"auto", fontSize:8, color:C.green }}>ASSIGNED</span>
-                      </>
-                    ) : <span style={{ fontSize:8, color:C.dim }}>—</span>}
-                  </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:2 }}>
-                    <span style={{ fontSize:8, color:C.yellow, fontWeight:700, minWidth:16 }}>P2</span>
-                    {secEntry ? (
-                      <>
-                        <span style={{ background:TARGET_COLOR, color:"#000", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:2 }}>T{secEntry.targetId}</span>
-                        <span style={{ fontSize:8, color:C.dim }}>{secEntry.distance.toFixed(0)}cm</span>
-                        <span style={{ marginLeft:"auto", fontSize:8, color:C.yellow }}>SECONDARY</span>
-                      </>
-                    ) : <span style={{ fontSize:8, color:C.dim }}>—</span>}
-                  </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:2 }}>
-                    <span style={{ fontSize:8, color:C.orange, fontWeight:700, minWidth:16 }}>P3</span>
-                    {terEntry ? (
-                      <>
-                        <span style={{ background:TARGET_COLOR, color:"#000", fontSize:8, fontWeight:700, padding:"1px 4px", borderRadius:2 }}>T{terEntry.targetId}</span>
-                        <span style={{ fontSize:8, color:C.dim }}>{terEntry.distance.toFixed(0)}cm</span>
-                        <span style={{ marginLeft:"auto", fontSize:8, color:C.orange }}>TERTIARY</span>
-                      </>
-                    ) : <span style={{ fontSize:8, color:C.dim }}>—</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
           {unassigned.length > 0 && (
             <div style={{ marginTop:8, padding:"8px 12px", background:"#150808", border:`1px solid ${C.red}40`, borderRadius:5, fontSize:10, animation:"fadeIn 0.3s ease" }}>
               <span style={{ color:C.red, fontWeight:700 }}>⚠ COVERAGE GAP — </span>
               <span style={{ color:C.text }}>Targets {unassigned.map(t=>`T${t.id}`).join(", ")} unassigned. All agents at capacity.</span>
             </div>
           )}
+          </div>
         </div>
+
+        {/* Right column: Agent 3 & 4 camera views */}
+        <div style={{ display:"flex", flexDirection:"column", gap:8, width:200, minWidth:160, flexShrink:1 }}>
+          {agents.slice(2, 4).map(agent => {
+            const color = AGENT_COLORS[agent.id] || "#888";
+            const isHl = hl === agent.id;
+            const prList = result.agentPriorities[agent.id] || [];
+            const primEntry = prList.find(e => e.role === "primary");
+            return (
+              <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
+                <div style={{ background:"#0d2030", border:`1px solid ${C.border}`, borderRadius:6, flex:1, minHeight:280, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:10 }}>
+                  {agent.id} Live Camera View
+                </div>
+                <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
+                  style={{ marginTop:6, padding:8, background:isHl?"#0e1825":C.panel, border:`1px solid ${isHl?color:C.border}`, borderRadius:5, cursor:"pointer" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                    <div style={{ width:8, height:8, borderRadius:"50%", background:color }}/>
+                    <span style={{ color, fontWeight:700, fontSize:11 }}>{agent.id}</span>
+                  </div>
+                  <div style={{ fontSize:8, color:C.dim, marginBottom:4 }}>{agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)} cm</div>
+                  <div style={{ fontSize:9 }}>
+                    {primEntry ? <span style={{ color:C.green }}>P1 T{primEntry.targetId} {primEntry.distance.toFixed(0)}cm</span> : <span style={{ color:C.dim }}>P1 —</span>}
+                  </div>
+                  <div style={{ fontSize:9, color:C.dim }}>P2 — · P3 —</div>
+                  <div style={{ fontSize:8, color:C.green, marginTop:4 }}>ASSIGNED</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       </div>
 
       {/* Config footer */}
