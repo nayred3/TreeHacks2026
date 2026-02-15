@@ -14,14 +14,32 @@ struct StreamingView: View {
     @State private var positionsSent: Int = 0
     @State private var lastError: String?
     @State private var positionTask: Task<Void, Never>?
+    @State private var hasStopped = false          // guard against double-stop
 
     var body: some View {
         ZStack {
-            // Full-screen camera preview
+            // Full-screen camera preview (safe even before session is running)
             CameraPreviewView(session: cameraManager.session)
                 .ignoresSafeArea()
 
-            // Status overlay
+            // Permission-denied overlay
+            if cameraManager.permissionDenied {
+                VStack(spacing: 12) {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 48))
+                    Text("Camera access denied")
+                        .font(.headline)
+                    Text("Go to Settings → PhoneCamStream → Camera and enable access.")
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black)
+            }
+
+            // Status overlay + stop button
             VStack {
                 statusOverlay
                     .padding(.horizontal)
@@ -29,8 +47,7 @@ struct StreamingView: View {
 
                 Spacer()
 
-                // Stop button
-                Button(action: stopEverything) {
+                Button(action: userTappedStop) {
                     Label("Stop Streaming", systemImage: "stop.fill")
                         .font(.headline)
                         .padding()
@@ -43,7 +60,7 @@ struct StreamingView: View {
             }
         }
         .onAppear(perform: startEverything)
-        .onDisappear { stopEverything() }
+        .onDisappear(perform: cleanUpOnly)      // just release resources, don't navigate
         .navigationBarBackButtonHidden(true)
         .statusBarHidden()
     }
@@ -52,7 +69,6 @@ struct StreamingView: View {
 
     private var statusOverlay: some View {
         VStack(spacing: 6) {
-            // Camera ID + heading
             HStack {
                 Text(config.cameraID)
                     .font(.headline.monospaced())
@@ -65,7 +81,6 @@ struct StreamingView: View {
 
             Divider().background(.white.opacity(0.3))
 
-            // Video stream status
             HStack {
                 Circle()
                     .fill(frameStreamer.isConnected ? .green : .red)
@@ -77,7 +92,6 @@ struct StreamingView: View {
                     .font(.caption2.monospaced())
             }
 
-            // Position stream status
             HStack {
                 Circle()
                     .fill(positionSender.isConnected ? .green : .red)
@@ -89,7 +103,6 @@ struct StreamingView: View {
                     .font(.caption2.monospaced())
             }
 
-            // Position info
             HStack {
                 Text("pos (\(config.posX, specifier: "%.1f"), \(config.posY, specifier: "%.1f"))m")
                     .font(.caption2.monospaced())
@@ -98,7 +111,6 @@ struct StreamingView: View {
                     .font(.caption2.monospaced())
             }
 
-            // Error display
             if let error = lastError {
                 Text(error)
                     .font(.caption2)
@@ -115,11 +127,13 @@ struct StreamingView: View {
     // MARK: - Lifecycle
 
     private func startEverything() {
-        // 1. Start camera capture
+        hasStopped = false
+
+        // 1. Camera (requests permission first, then starts capture)
         cameraManager.targetFPS = config.streamFPS
         cameraManager.startCapture()
 
-        // 2. Configure frame streamer
+        // 2. Frame streamer
         frameStreamer.configure(
             targetHost: config.loganIP,
             targetPort: config.loganPortInt,
@@ -127,28 +141,26 @@ struct StreamingView: View {
             jpegQuality: config.jpegQuality
         )
 
-        // 3. Configure position sender
+        // 3. Position sender
         positionSender.configure(
             targetHost: config.justinIP,
             targetPort: config.justinPortInt,
             cameraID: config.cameraID
         )
 
-        // 4. Start compass
+        // 4. Compass
         headingTracker.start()
 
-        // 5. Hook camera frames to streamer
+        // 5. Hook camera frames → streamer
         cameraManager.onFrame = { [weak frameStreamer] sampleBuffer in
             frameStreamer?.sendFrame(sampleBuffer) { success in
-                if success {
-                    DispatchQueue.main.async { framesSent += 1 }
-                } else {
-                    DispatchQueue.main.async { lastError = "Frame send failed" }
+                DispatchQueue.main.async {
+                    if success { framesSent += 1 }
                 }
             }
         }
 
-        // 6. Start position update loop (10 Hz)
+        // 6. Position update loop (10 Hz)
         positionTask = Task {
             while !Task.isCancelled {
                 let pos = [config.posX, config.posY]
@@ -160,18 +172,32 @@ struct StreamingView: View {
                     }
                 }
 
-                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100 ms
             }
         }
     }
 
-    private func stopEverything() {
+    /// Called when the user explicitly taps Stop → tear down + navigate back.
+    private func userTappedStop() {
+        guard !hasStopped else { return }
+        hasStopped = true
+        tearDown()
+        onStop()
+    }
+
+    /// Called from onDisappear — release resources but do NOT call onStop()
+    /// (avoids double-navigation crash).
+    private func cleanUpOnly() {
+        tearDown()
+    }
+
+    private func tearDown() {
         positionTask?.cancel()
         positionTask = nil
+        cameraManager.onFrame = nil
         cameraManager.stopCapture()
         frameStreamer.stop()
         positionSender.stop()
         headingTracker.stop()
-        onStop()
     }
 }

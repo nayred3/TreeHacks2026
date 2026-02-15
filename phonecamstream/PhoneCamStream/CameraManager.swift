@@ -2,7 +2,7 @@ import AVFoundation
 import UIKit
 
 /// Manages the AVCaptureSession, provides JPEG-ready sample buffers at a
-/// configurable frame rate.
+/// configurable frame rate.  Handles camera permission requests.
 class CameraManager: NSObject, ObservableObject {
 
     let session = AVCaptureSession()
@@ -14,30 +14,71 @@ class CameraManager: NSObject, ObservableObject {
     /// Desired output frame rate (frames per second).
     var targetFPS: Double = 5
 
+    @Published var isRunning = false
+    @Published var permissionDenied = false
+
     // MARK: - Private
 
     private let sessionQueue = DispatchQueue(label: "com.phonecamstream.session")
     private let outputQueue  = DispatchQueue(label: "com.phonecamstream.output")
     private let videoOutput  = AVCaptureVideoDataOutput()
     private var lastFrameTime: CFAbsoluteTime = 0
+    private var isConfigured = false
 
     // MARK: - Public API
 
+    /// Request camera permission, then start capture if granted.
     func startCapture() {
-        sessionQueue.async { [weak self] in
-            guard let self else { return }
-            self.configureSession()
-            self.session.startRunning()
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+
+        switch status {
+        case .authorized:
+            beginSession()
+
+        case .notDetermined:
+            // First launch — show the system permission dialog
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                guard let self else { return }
+                if granted {
+                    self.beginSession()
+                } else {
+                    DispatchQueue.main.async { self.permissionDenied = true }
+                }
+            }
+
+        case .denied, .restricted:
+            DispatchQueue.main.async { self.permissionDenied = true }
+            print("[CameraManager] Camera permission denied")
+
+        @unknown default:
+            break
         }
     }
 
     func stopCapture() {
         sessionQueue.async { [weak self] in
-            self?.session.stopRunning()
+            guard let self else { return }
+            if self.session.isRunning {
+                self.session.stopRunning()
+            }
+            DispatchQueue.main.async { self.isRunning = false }
         }
     }
 
     // MARK: - Session Setup
+
+    private func beginSession() {
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            if !self.isConfigured {
+                self.configureSession()
+            }
+            if !self.session.isRunning {
+                self.session.startRunning()
+            }
+            DispatchQueue.main.async { self.isRunning = true }
+        }
+    }
 
     private func configureSession() {
         session.beginConfiguration()
@@ -82,12 +123,13 @@ class CameraManager: NSObject, ObservableObject {
                     connection.videoRotationAngle = 0   // landscape
                 }
             } else {
-                // Fallback for iOS 16
                 if connection.isVideoOrientationSupported {
                     connection.videoOrientation = .portrait
                 }
             }
         }
+
+        isConfigured = true
     }
 }
 
