@@ -78,7 +78,7 @@ function prepareHiDPI(canvas) {
   return ctx;
 }
 
-export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, _unused, wallLayout, paths, wallGrid, hideCameraCone = false) {
+export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, _unused, wallLayout, paths, wallGrid, hideCameraCone = false, extraLines = []) {
   const ctx = prepareHiDPI(canvas);
   ctx.clearRect(0, 0, WW, WH);
   ctx.fillStyle = "#0a0c18";
@@ -325,6 +325,30 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.fillStyle = color;
     ctx.font = "bold 10px 'Inter','Segoe UI',system-ui,sans-serif";
     ctx.fillText(`P1·${formatDistanceFeet(d)} ft`, mp1.x + 3, mp1.y - 4);
+    ctx.restore();
+  }
+
+  // Extra lines (e.g. Bob→target in Live Demo 1)
+  for (const { agentId, targetId } of extraLines) {
+    const a = agents.find((x) => x.id === agentId);
+    const t = targets.find((x) => x.id === targetId);
+    if (!t || !a) continue;
+    const color = AGENT_COLORS[agentId] || "#888";
+    const d = pathDist(targetId, agentId);
+    const tp = toPx(t.position), ap = toPx(a.position);
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 6;
+    ctx.setLineDash([]);
+    drawPath(ctx, ap, tp, paths, agentId, targetId);
+    ctx.shadowBlur = 0;
+    const mp = pathMidpoint(ap, tp, paths, agentId, targetId);
+    ctx.fillStyle = color;
+    ctx.font = "bold 10px 'Inter','Segoe UI',system-ui,sans-serif";
+    ctx.fillText(`${agentId}→T${targetId} · ${formatDistanceFeet(d)} ft`, mp.x + 3, mp.y - 4);
     ctx.restore();
   }
 

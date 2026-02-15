@@ -74,8 +74,8 @@ export default function App() {
   }, []);
 
   const DEMO_AGENTS = [
-    { id: "Alice", position: { x: -255, y: 23 }, vel: { vx: 1.5, vy: 1.0 } },
-    { id: "Bob", position: { x: 308, y: -252 }, vel: { vx: -1.2, vy: 1.5 } },
+    { id: "Justin", position: { x: -255, y: 23 }, vel: { vx: 1.5, vy: 1.0 } },
+    { id: "Logan", position: { x: 308, y: -252 }, vel: { vx: -1.2, vy: 1.5 } },
   ];
   const DEMO_TARGETS = [
     { id: 1, position: { x: 26, y: -69 }, vel: { vx: 0.5, vy: 0.5 }, confidence: 0.93 },
@@ -181,9 +181,11 @@ export default function App() {
     // Live Demo 1 waypoints (feet)
     const LD1_ALICE_START = feetToFrontendPos(6, 9);
     const LD1_ALICE_GOAL = feetToFrontendPos(6, 19);
-    const LD1_BOB_POS = feetToFrontendPos(6, 15);
+    const LD1_BOB_START = feetToFrontendPos(6, 5);
+    const LD1_BOB_GOAL = feetToFrontendPos(6, 15);
     const LD1_TARGET_POS = feetToFrontendPos(38, 20);
     const LD1_ALICE_SPEED = 80;  // cm per sec
+    const LD1_BOB_SPEED = 80;
     const LD1_FACING_TURN = 0.08;  // rad per tick for scripted turn
 
     function runLiveDemo1Script(s, dtSec) {
@@ -206,11 +208,13 @@ export default function App() {
           alice.position.y += (dy / dist) * step;
           alice.facing = Math.PI / 2;  // down
         }
-        bob.position = { ...LD1_BOB_POS };
+        bob.position = { ...LD1_BOB_START };
+        bob.facing = Math.PI / 2;  // down
       } else if (script.phase === 1) {
         // Phase 1: Alice at (6,19), rotate FOV to face right
         alice.position = { ...LD1_ALICE_GOAL };
-        bob.position = { ...LD1_BOB_POS };
+        bob.position = { ...LD1_BOB_START };
+        bob.facing = Math.PI / 2;  // down
         const targetFacing = 0;  // right
         const diff = targetFacing - alice.facing;
         if (Math.abs(diff) < 0.02) {
@@ -220,18 +224,45 @@ export default function App() {
           alice.facing += Math.sign(diff) * Math.min(LD1_FACING_TURN, Math.abs(diff));
         }
       } else if (script.phase === 2) {
-        // Phase 2: Target appears at (38, 24.663)
+        // Phase 2: Target 1 appears (spotted) — Bob still at (6,5), facing down
         alice.position = { ...LD1_ALICE_GOAL };
         alice.facing = 0;
-        bob.position = { ...LD1_BOB_POS };
+        bob.position = { ...LD1_BOB_START };
+        bob.facing = Math.PI / 2;  // down
         const now = Date.now();
         s.targets = [{ id: 1, position: { ...LD1_TARGET_POS }, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
         script.phase = 3;
-      } else {
-        // Phase 3: Steady state - Bob at (6,15), target visible
+      } else if (script.phase === 3) {
+        // Phase 3: Bob moves from (6,5) to (6,15) after target spotted, facing down
         alice.position = { ...LD1_ALICE_GOAL };
         alice.facing = 0;
-        bob.position = { ...LD1_BOB_POS };
+        const dx = LD1_BOB_GOAL.x - bob.position.x;
+        const dy = LD1_BOB_GOAL.y - bob.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 5) {
+          bob.position = { ...LD1_BOB_GOAL };
+          script.phase = 4;
+        } else {
+          const step = Math.min(LD1_BOB_SPEED * dtSec, dist);
+          bob.position.x += (dx / dist) * step;
+          bob.position.y += (dy / dist) * step;
+        }
+        bob.facing = Math.PI / 2;  // down while moving
+        if (s.targets.length === 0) {
+          const now = Date.now();
+          s.targets = [{ id: 1, position: { ...LD1_TARGET_POS }, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
+        }
+      } else {
+        // Phase 4: Bob at (6,15), turn FOV from down to right, then steady
+        alice.position = { ...LD1_ALICE_GOAL };
+        alice.facing = 0;
+        bob.position = { ...LD1_BOB_GOAL };
+        const diff = 0 - bob.facing;
+        if (Math.abs(diff) > 0.02) {
+          bob.facing += Math.sign(diff) * Math.min(LD1_FACING_TURN, Math.abs(diff));
+        } else {
+          bob.facing = 0;
+        }
         if (s.targets.length === 0) {
           const now = Date.now();
           s.targets = [{ id: 1, position: { ...LD1_TARGET_POS }, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
@@ -278,7 +309,8 @@ export default function App() {
       }
       s.prevPrimary = { ...res.primary }; s.prevSecondary = { ...res.secondary };
       const canvas = canvasRef.current;
-      if (canvas) drawScene(canvas, agents, targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths);
+      const extraLines = liveDemo1 && targets.length > 0 ? targets.map(t => ({ agentId: "Bob", targetId: t.id })) : [];
+      if (canvas) drawScene(canvas, agents, targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths, wallGrid, false, extraLines);
       setTick(tickN); setResult(res);
       setUi({ agents: [...agents], targets: [...targets] });
     }
@@ -393,11 +425,11 @@ export default function App() {
   const liveDemo1ScriptRef = useRef({ phase: 0, startTime: 0 });
 
   const initLiveDemo1Script = useCallback(() => {
-    const bobPos = feetToFrontendPos(6, 15);
+    const bobPos = feetToFrontendPos(6, 5);
     const alicePos = feetToFrontendPos(6, 9);
     const now = Date.now();
     stateRef.current.agents = [
-      { id: "Bob", position: bobPos, vel: { vx: 0, vy: 0 }, facing: 0 },
+      { id: "Bob", position: bobPos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
       { id: "Alice", position: alicePos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
     ];
     stateRef.current.targets = [];
