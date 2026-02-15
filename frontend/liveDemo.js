@@ -5,7 +5,7 @@
  *   cameras: [{ id, position: [x,y], heading, image_width, image_height, hfov_deg, mobile }]
  *   timesteps: [{ t, persons, fused_tracks, camera_feeds, camera_positions }]
  *
- * Heading: degrees from perfect north (0° = north, 90° = east, 180° = south, 270° = west).
+ * Heading: phone/camera direction, degrees from perfect north (0°=north, 90°=east). Map top = 174° south.
  *
  * Fusion room: x [0,12] m, y [0,10] m. Frontend: 886×688 cm, center origin.
  */
@@ -17,8 +17,8 @@ const FUSION_CENTER_Y = 5;
 const FRONTEND_WIDTH_CM = 886;
 const FRONTEND_HEIGHT_CM = 688;
 
-/** Map top points 169° from geographic north (south). Headings are degrees from north. */
-export const MAP_TOP_BEARING = 169;
+/** Map top (upward direction) = 174° south of geographic north. Phone/camera headings are degrees from perfect north. */
+export const MAP_TOP_BEARING = 174;
 
 /** Demo duration in seconds for camera movement data. */
 const DEMO_DURATION_SEC = 120;
@@ -42,8 +42,8 @@ function seededRandom(seed) {
 }
 
 /**
- * Get camera position and heading at time t (0–120 sec). 2 minutes of sample data.
- * Coordinates in meters; heading in degrees from geographic north.
+ * Get camera/phone position and heading at time t (0–120 sec). 2 minutes of sample data.
+ * Coordinates in meters; heading = direction phone is facing, degrees from perfect north (0°=north, 90°=east).
  */
 function getCameraStateAtTime(camId, t) {
   const T = DEMO_DURATION_SEC;

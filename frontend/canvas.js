@@ -373,7 +373,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     if (a.facing != null && typeof a.facing === "number") {
       angleRad = a.facing;
     } else if (a.headingFromNorth != null && typeof a.headingFromNorth === "number") {
-      // Heading = degrees from geographic north. Map top = 169° (south).
+      // Heading = degrees from geographic north. Map top = 174° (south).
       angleRad = ((a.headingFromNorth - MAP_TOP_BEARING - 90) * Math.PI) / 180;
     } else if (a.heading != null && typeof a.heading === "number") {
       angleRad = (a.heading * Math.PI) / 180;
