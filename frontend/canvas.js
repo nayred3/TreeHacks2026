@@ -5,6 +5,7 @@
 
 import { euclidean } from "./utils.js";
 import { WW, WH, AGENT_COLORS, TARGET_COLOR, STALE_TTL } from "./config.js";
+import { GRID_SIZE } from "./pathfinding.js";
 
 /**
  * Check if the A* path requires a polyline (i.e. it deviates from a straight line).
@@ -76,13 +77,13 @@ function prepareHiDPI(canvas) {
   return ctx;
 }
 
-export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, _unused, wallLayout, paths) {
+export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, _unused, wallLayout, paths, wallGrid) {
   const ctx = prepareHiDPI(canvas);
   ctx.clearRect(0, 0, WW, WH);
   ctx.fillStyle = "#05080e";
   ctx.fillRect(0, 0, WW, WH);
 
-  // Wall overlay with door openings cut out (works for both preset and schematic-derived layouts)
+  // Wall overlay: preset uses wallLayout (segments + doors), schematic uses raw wallGrid (light=wall, black=empty)
   if (wallLayout) {
     ctx.save();
     ctx.lineCap = "round";
@@ -148,6 +149,20 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
           ctx.moveTo(w.x1 + wdx * prev, w.y1 + wdy * prev);
           ctx.lineTo(w.x2, w.y2);
           ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+  } else if (wallGrid?.length) {
+    // Schematic: draw each wall cell as a filled rect (light pixels = walls)
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    const rows = wallGrid.length;
+    const cols = wallGrid[0]?.length ?? 0;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (wallGrid[r][c]) {
+          ctx.fillRect(c * GRID_SIZE, r * GRID_SIZE, GRID_SIZE, GRID_SIZE);
         }
       }
     }

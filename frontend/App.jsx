@@ -325,7 +325,7 @@ export default function App() {
           <button onClick={addPresetWalls} style={{
             background:"#13161f", border:`1px solid ${C.orange}80`, color:C.orange,
             padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit"
-          }}>🧱 ADD WALLS</button>
+          }}>ADD WALLS 1</button>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleSchematicUpload} style={{ display:"none" }}/>
           <button onClick={() => fileInputRef.current?.click()} style={{
             background:"linear-gradient(135deg, #0d1c2d, #15324d)",
