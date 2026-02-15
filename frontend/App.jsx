@@ -829,7 +829,7 @@ export default function App() {
                       <div style={{ fontSize:11, color:C.text, marginBottom:2 }}>{agent.id}</div>
                       <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Position</div>
                       <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)})</div>
-                      <div style={{ fontSize:10, color:C.dim, marginTop:4, marginBottom:2 }}>Direction</div>
+                      <div style={{ fontSize:10, color:C.dim, marginTop:4, marginBottom:2 }}>Camera angle</div>
                       <div style={{ fontSize:11, color:C.cyan, fontWeight:600 }}>
                         {agent.headingFromNorth != null
                           ? `${Math.round(agent.headingFromNorth)}° from N`
