@@ -4,7 +4,7 @@ import { euclidean, randomWalk } from "./utils.js";
 import { runPriorityAssignment } from "./assignment.js";
 import { drawScene } from "./canvas.js";
 import { extractWallGrid, createPresetWallLayout, wallLayoutToGrid, gridToWallLayout, WALL_LAYOUT_OPTIONS, GRID_SIZE } from "./pathfinding.js";
-import { fetchFusionData, frontendPosToFeet } from "./liveDemo.js";
+import { frontendPosToFeet, feetToFrontendPos } from "./liveDemo.js";
 
 /** Embeds MJPEG stream; falls back to placeholder if stream unreachable. */
 function CameraStream({ agentId, streamUrl, fallback }) {
@@ -45,12 +45,12 @@ export default function App() {
   const [logFilter, setLogFilter] = useState("all");
   const [wallGrid, setWallGrid]         = useState(null);
   const [wallLayout, setWallLayout]     = useState(null);
-  const [isLiveDemo, setIsLiveDemo]     = useState(false);
+  const [liveDemo1, setLiveDemo1]       = useState(false);
+  const [liveDemo2, setLiveDemo2]       = useState(false);
+  const isLiveDemo = liveDemo1 || liveDemo2;
   const [wallsDropdownOpen, setWallsDropdownOpen] = useState(false);
   const wallsDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
-  const liveAgentsRef = useRef([]);
-  const liveTargetsRef = useRef([]);
 
   useEffect(() => {
     const close = (e) => { if (wallsDropdownRef.current && !wallsDropdownRef.current.contains(e.target)) setWallsDropdownOpen(false); };
@@ -60,51 +60,47 @@ export default function App() {
   const addEvent = useCallback((msg, type = "info") =>
     setEvents(prev => [{ msg, type, ts: Date.now() }, ...prev.slice(0, 59)]), []);
 
-  // Live Demo: poll fusion /api/map, map cameras -> agents, fused_tracks -> targets
-  useEffect(() => {
-    if (!isLiveDemo) {
-      liveAgentsRef.current = [];
-      liveTargetsRef.current = [];
-      return;
-    }
-    let cancelled = false;
-    const poll = async () => {
-      if (cancelled) return;
-      try {
-        const { agents, targets } = await fetchFusionData();
-        if (cancelled) return;
-        liveAgentsRef.current = agents;
-        liveTargetsRef.current = targets;
-        setTick(t => t + 1);
-      } catch (_) {
-        // Fusion server not running; leave refs empty
-      }
-    };
-    poll();
-    const iv = setInterval(poll, 200);
-    addEvent("Live Demo — polling fusion cam_view data…", "system");
-    return () => { cancelled = true; clearInterval(iv); };
-  }, [isLiveDemo, addEvent]);
+  const setDemoState = useCallback((agents, targets) => {
+    if (!stateRef.current) return;
+    const now = Date.now();
+    stateRef.current.agents = agents.map(a => ({
+      ...a,
+      facing: Math.atan2(a.vel.vy, a.vel.vx),
+    }));
+    stateRef.current.targets = targets.map(t => ({ ...t, lastSeen: now }));
+    stateRef.current.prevPrimary = {};
+    stateRef.current.prevSecondary = {};
+    stateRef.current.nextId = Math.max(...targets.map(t => t.id), 0) + 1;
+  }, []);
+
+  const DEMO_AGENTS = [
+    { id: "Alice", position: { x: -255, y: 23 }, vel: { vx: 1.5, vy: 1.0 } },
+    { id: "Bob", position: { x: 308, y: -252 }, vel: { vx: -1.2, vy: 1.5 } },
+  ];
+  const DEMO_TARGETS = [
+    { id: 1, position: { x: 26, y: -69 }, vel: { vx: 0.5, vy: 0.5 }, confidence: 0.93 },
+  ];
+  const SAMPLE_AGENTS = [
+    { id: "Alice", position: { x: -250, y: -150 }, vel: { vx: 1.5, vy: 1.0 } },
+    { id: "Bob", position: { x: 250, y: -120 }, vel: { vx: -1.2, vy: 1.5 } },
+    { id: "Charlie", position: { x: 50, y: 150 }, vel: { vx: 0.8, vy: -1.8 } },
+    { id: "Diana", position: { x: -220, y: 120 }, vel: { vx: 1.6, vy: -0.9 } },
+  ];
+  const SAMPLE_TARGETS = [
+    { id: 1, position: { x: -120, y: -50 }, vel: { vx: 2.0, vy: 1.0 }, confidence: 0.93 },
+    { id: 2, position: { x: 180, y: 60 }, vel: { vx: -1.6, vy: 1.2 }, confidence: 0.81 },
+    { id: 3, position: { x: 20, y: 40 }, vel: { vx: 1.0, vy: -2.0 }, confidence: 0.67 },
+  ];
 
   // Init
   useEffect(() => {
     const now = Date.now();
-    const agentData = [
-      { id: "Alice",   position: { x: -250, y: -150 }, vel: { vx:  1.5, vy:  1.0 } },
-      { id: "Bob",     position: { x:  250, y: -120 }, vel: { vx: -1.2, vy:  1.5 } },
-      { id: "Charlie", position: { x:   50, y:  150 }, vel: { vx:  0.8, vy: -1.8 } },
-      { id: "Diana",   position: { x: -220, y:  120 }, vel: { vx:  1.6, vy: -0.9 } },
-    ];
     stateRef.current = {
-      agents: agentData.map(a => ({
+      agents: SAMPLE_AGENTS.map(a => ({
         ...a,
         facing: Math.atan2(a.vel.vy, a.vel.vx),
       })),
-      targets: [
-        { id: 1, position: { x: -120, y: -50 }, vel: { vx:  2.0, vy:  1.0  }, confidence: 0.93, lastSeen: now },
-        { id: 2, position: { x:  180, y:  60 }, vel: { vx: -1.6, vy:  1.2 }, confidence: 0.81, lastSeen: now },
-        { id: 3, position: { x:   20, y:  40 }, vel: { vx:  1.0, vy: -2.0  }, confidence: 0.67, lastSeen: now },
-      ],
+      targets: SAMPLE_TARGETS.map(t => ({ ...t, lastSeen: now })),
       prevPrimary: {}, prevSecondary: {}, nextId: 4,
     };
     addEvent("System online — 4 agents, 3 targets", "system");
@@ -182,16 +178,81 @@ export default function App() {
       return { pos: { ...parked }, vel: { vx: -vel.vx * 0.6, vy: -vel.vy * 0.6 } };
     };
 
+    // Live Demo 1 waypoints (feet)
+    const LD1_ALICE_START = feetToFrontendPos(6, 9);
+    const LD1_ALICE_GOAL = feetToFrontendPos(6, 19);
+    const LD1_BOB_POS = feetToFrontendPos(6, 15);
+    const LD1_TARGET_POS = feetToFrontendPos(38, 20);
+    const LD1_ALICE_SPEED = 80;  // cm per sec
+    const LD1_FACING_TURN = 0.08;  // rad per tick for scripted turn
+
+    function runLiveDemo1Script(s, dtSec) {
+      const script = liveDemo1ScriptRef.current;
+      const bob = s.agents.find(a => a.id === "Bob");
+      const alice = s.agents.find(a => a.id === "Alice");
+      if (!bob || !alice) return;
+
+      if (script.phase === 0) {
+        // Phase 0: Alice moves to (6,19) facing down
+        const dx = LD1_ALICE_GOAL.x - alice.position.x;
+        const dy = LD1_ALICE_GOAL.y - alice.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 5) {
+          script.phase = 1;
+          script.phaseStart = performance.now();
+        } else {
+          const step = Math.min(LD1_ALICE_SPEED * dtSec, dist);
+          alice.position.x += (dx / dist) * step;
+          alice.position.y += (dy / dist) * step;
+          alice.facing = Math.PI / 2;  // down
+        }
+        bob.position = { ...LD1_BOB_POS };
+      } else if (script.phase === 1) {
+        // Phase 1: Alice at (6,19), rotate FOV to face right
+        alice.position = { ...LD1_ALICE_GOAL };
+        bob.position = { ...LD1_BOB_POS };
+        const targetFacing = 0;  // right
+        const diff = targetFacing - alice.facing;
+        if (Math.abs(diff) < 0.02) {
+          alice.facing = 0;
+          script.phase = 2;
+        } else {
+          alice.facing += Math.sign(diff) * Math.min(LD1_FACING_TURN, Math.abs(diff));
+        }
+      } else if (script.phase === 2) {
+        // Phase 2: Target appears at (38, 24.663)
+        alice.position = { ...LD1_ALICE_GOAL };
+        alice.facing = 0;
+        bob.position = { ...LD1_BOB_POS };
+        const now = Date.now();
+        s.targets = [{ id: 1, position: { ...LD1_TARGET_POS }, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
+        script.phase = 3;
+      } else {
+        // Phase 3: Steady state - Bob at (6,15), target visible
+        alice.position = { ...LD1_ALICE_GOAL };
+        alice.facing = 0;
+        bob.position = { ...LD1_BOB_POS };
+        if (s.targets.length === 0) {
+          const now = Date.now();
+          s.targets = [{ id: 1, position: { ...LD1_TARGET_POS }, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
+        }
+      }
+    }
+
     function loop(now) {
       animRef.current = requestAnimationFrame(loop);
       const s = stateRef.current;
       let agents, targets;
-      if (isLiveDemo) {
-        agents = [...liveAgentsRef.current];
-        targets = [...liveTargetsRef.current];
+      const dtMs = Math.min(now - lastT, 100);
+      if (paused || dtMs < 50) return;
+      lastT = now; tickN++;
+      const dtSec = dtMs / 1000;
+
+      if (liveDemo1) {
+        runLiveDemo1Script(s, dtSec);
+        agents = s.agents;
+        targets = s.targets;
       } else {
-        if (paused || now - lastT < 50) return;
-        lastT = now; tickN++;
         s.agents = s.agents.map(a => {
           const r = constrainedWalk(a.position, a.vel, CM_PER_TICK);
           const targetAngle = (r.vel.vx !== 0 || r.vel.vy !== 0) ? Math.atan2(r.vel.vy, r.vel.vx) : a.facing;
@@ -217,13 +278,13 @@ export default function App() {
       }
       s.prevPrimary = { ...res.primary }; s.prevSecondary = { ...res.secondary };
       const canvas = canvasRef.current;
-      if (canvas) drawScene(canvas, agents, targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths, undefined, isLiveDemo);
+      if (canvas) drawScene(canvas, agents, targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths);
       setTick(tickN); setResult(res);
       setUi({ agents: [...agents], targets: [...targets] });
     }
     animRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animRef.current);
-  }, [paused, frozen, hl, showZones, addEvent, wallGrid, wallLayout, isLiveDemo]);
+  }, [paused, frozen, hl, showZones, addEvent, wallGrid, wallLayout, isLiveDemo, liveDemo1]);
 
   const onCanvasClick = e => {
     if (!stateRef.current || !canvasRef.current) return;
@@ -305,16 +366,21 @@ export default function App() {
   const clearSchematic = () => {
     setWallLayout(null);
     setWallGrid(null);
-    setIsLiveDemo(false);
-    if (stateRef.current) { stateRef.current.prevPrimary = {}; stateRef.current.prevSecondary = {}; }
+    setLiveDemo1(false);
+    setLiveDemo2(false);
+    setDemoState(SAMPLE_AGENTS, SAMPLE_TARGETS);
     addEvent("🏗 Schematic cleared — euclidean distances restored", "system");
   };
 
-  const addPresetWalls = (layoutType = "schematic-47x37") => {
+  const addPresetWalls = (layoutType = "schematic-47x37", clearDemoState = false) => {
     const layout = createPresetWallLayout(WW, WH, layoutType);
     setWallLayout(layout);
     setWallGrid(wallLayoutToGrid(layout, WW, WH));
-    setIsLiveDemo(layoutType === "dual-vertical" || layoutType === "schematic-47x37");
+    if (clearDemoState) {
+      setLiveDemo1(false);
+      setLiveDemo2(false);
+      setDemoState(SAMPLE_AGENTS, SAMPLE_TARGETS);
+    }
     if (stateRef.current) {
       stateRef.current.prevPrimary = {};
       stateRef.current.prevSecondary = {};
@@ -322,6 +388,56 @@ export default function App() {
     setWallsDropdownOpen(false);
     const label = WALL_LAYOUT_OPTIONS.find(o => o.id === layoutType)?.label || layoutType;
     addEvent(`🧱 ${label} — A* pathfinding enabled`, "system");
+  };
+
+  const liveDemo1ScriptRef = useRef({ phase: 0, startTime: 0 });
+
+  const initLiveDemo1Script = useCallback(() => {
+    const bobPos = feetToFrontendPos(6, 15);
+    const alicePos = feetToFrontendPos(6, 9);
+    const now = Date.now();
+    stateRef.current.agents = [
+      { id: "Bob", position: bobPos, vel: { vx: 0, vy: 0 }, facing: 0 },
+      { id: "Alice", position: alicePos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
+    ];
+    stateRef.current.targets = [];
+    stateRef.current.prevPrimary = {};
+    stateRef.current.prevSecondary = {};
+    liveDemo1ScriptRef.current = { phase: 0, startTime: now };
+  }, []);
+
+  const toggleLiveDemo1 = () => {
+    const next = !liveDemo1;
+    if (next) {
+      setLiveDemo2(false);
+      addPresetWalls("schematic-47x37");
+      initLiveDemo1Script();
+    } else {
+      if (liveDemo2) {
+        addPresetWalls("schematic-47x37");
+        setDemoState(DEMO_AGENTS, DEMO_TARGETS);
+      } else {
+        clearSchematic();
+      }
+    }
+    setLiveDemo1(next);
+  };
+
+  const toggleLiveDemo2 = () => {
+    const next = !liveDemo2;
+    if (next) {
+      setLiveDemo1(false);
+      addPresetWalls("schematic-47x37");
+      setDemoState(DEMO_AGENTS, DEMO_TARGETS);
+    } else {
+      if (liveDemo1) {
+        addPresetWalls("schematic-47x37");
+        initLiveDemo1Script();
+      } else {
+        clearSchematic();
+      }
+    }
+    setLiveDemo2(next);
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -461,10 +577,14 @@ export default function App() {
               <button onClick={scatter} style={{ background:"#2d2608", border:`1px solid ${C.gold}60`, color:C.gold, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>⚡ SCATTER</button>
             </>
           )}
-          <button onClick={() => { setIsLiveDemo(prev => !prev); if (!isLiveDemo) addPresetWalls("schematic-47x37"); }} style={{
-            background: isLiveDemo ? "linear-gradient(135deg, rgba(79,124,255,0.28) 0%, rgba(56,189,248,0.18) 100%)" : C.panel, border:`1px solid ${isLiveDemo ? C.accent + "99" : C.border}`, color:C.cyan,
-            padding:"6px 12px", borderRadius:6, cursor:"pointer", fontSize:11, fontFamily:"inherit", boxShadow: isLiveDemo ? "0 0 14px rgba(79,124,255,0.3)" : "none",
-          }}>{isLiveDemo ? "LIVE DEMO ON" : "LIVE DEMO"}</button>
+          <button onClick={toggleLiveDemo1} style={{
+            background: liveDemo1 ? "linear-gradient(135deg, rgba(79,124,255,0.28) 0%, rgba(56,189,248,0.18) 100%)" : C.panel, border:`1px solid ${liveDemo1 ? C.accent + "99" : C.border}`, color:C.cyan,
+            padding:"6px 12px", borderRadius:6, cursor:"pointer", fontSize:11, fontFamily:"inherit", boxShadow: liveDemo1 ? "0 0 14px rgba(79,124,255,0.3)" : "none",
+          }}>{liveDemo1 ? "LIVE DEMO 1 ON" : "LIVE DEMO 1"}</button>
+          <button onClick={toggleLiveDemo2} style={{
+            background: liveDemo2 ? "linear-gradient(135deg, rgba(79,124,255,0.28) 0%, rgba(56,189,248,0.18) 100%)" : C.panel, border:`1px solid ${liveDemo2 ? C.accent + "99" : C.border}`, color:C.cyan,
+            padding:"6px 12px", borderRadius:6, cursor:"pointer", fontSize:11, fontFamily:"inherit", boxShadow: liveDemo2 ? "0 0 14px rgba(79,124,255,0.3)" : "none",
+          }}>{liveDemo2 ? "LIVE DEMO 2 ON" : "LIVE DEMO 2"}</button>
           <div ref={wallsDropdownRef} style={{ position:"relative" }}>
             <button onClick={() => setWallsDropdownOpen(o => !o)} style={{
               background: wallsDropdownOpen ? "rgba(251,191,36,0.12)" : C.panel, border:`1px solid ${C.gold}`, color:C.gold,
@@ -479,7 +599,7 @@ export default function App() {
                 borderRadius:6, boxShadow:"0 4px 16px rgba(0,0,0,0.4)", minWidth:160, zIndex:20,
               }}>
                 {WALL_LAYOUT_OPTIONS.map(({ id, label }) => (
-                  <button key={id} onClick={() => addPresetWalls(id)} style={{
+                  <button key={id} onClick={() => addPresetWalls(id, true)} style={{
                     display:"block", width:"100%", textAlign:"left", padding:"8px 12px", border:"none",
                     background:"transparent", color:C.text, cursor:"pointer", fontSize:11, fontFamily:"inherit",
                   }} onMouseEnter={e => { e.target.style.background = C.border; }} onMouseLeave={e => { e.target.style.background = "transparent"; }}>

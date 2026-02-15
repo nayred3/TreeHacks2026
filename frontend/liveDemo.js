@@ -24,7 +24,7 @@ const SX = FRONTEND_WIDTH_CM / W_FT;   // px (cm) per ft horizontal
 const SY = FRONTEND_HEIGHT_CM / H_FT;  // px (cm) per ft vertical
 
 /** Convert schematic position (feet from top-left) to frontend (cm, center origin). */
-function feetToFrontendPos(x_ft, y_ft) {
+export function feetToFrontendPos(x_ft, y_ft) {
   const x_cm = x_ft * SX - FRONTEND_WIDTH_CM / 2;
   const y_cm = y_ft * SY - FRONTEND_HEIGHT_CM / 2;
   return { x: x_cm, y: y_cm };
