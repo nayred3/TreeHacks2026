@@ -810,7 +810,7 @@ export default function App() {
         </div>
 
         {/* Agent panels: top row Alice & Bob, bottom row Charlie & Diana */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gridTemplateRows:"1fr 1fr", gap:2, flex:1, minWidth:320 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gridTemplateRows:"1fr 1fr", rowGap:0, columnGap:2, flex:1, minWidth:320 }}>
           {agents.map(agent => {
             const color = AGENT_COLORS[agent.id] || "#888";
             const isHl = hl === agent.id;
