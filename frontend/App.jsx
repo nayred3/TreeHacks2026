@@ -182,56 +182,122 @@ export default function App() {
     const LD1_ALICE_START = feetToFrontendPos(6, 9);
     const LD1_ALICE_GOAL = feetToFrontendPos(6, 19);
     const LD1_BOB_POS = feetToFrontendPos(6, 5);
-    const LD1_TARGET_POS = feetToFrontendPos(38, 20);
-    const LD1_ALICE_SPEED = 80;  // cm per sec
+    const LD1_BOB_GOAL = feetToFrontendPos(6, 15);
+    const LD1_TARGET_POS = feetToFrontendPos(38, 24.663);
+    const LD1_BASE_SPEED = 80;  // cm per sec
+    const LD1_ACCEL = 120;  // cm/s² random acceleration magnitude
+    const LD1_MAX_SPEED = 150;
     const LD1_FACING_TURN = 0.08;  // rad per tick for scripted turn
 
     function runLiveDemo1Script(s, dtSec) {
       const script = liveDemo1ScriptRef.current;
-      const bob = s.agents.find(a => a.id === "Bob");
-      const alice = s.agents.find(a => a.id === "Alice");
-      if (!bob || !alice) return;
+      const logan = s.agents.find(a => a.id === "Logan");
+      const justin = s.agents.find(a => a.id === "Justin");
+      if (!logan || !justin) return;
 
       if (script.phase === 0) {
-        // Phase 0: Alice moves to (6,19) facing down
-        const dx = LD1_ALICE_GOAL.x - alice.position.x;
-        const dy = LD1_ALICE_GOAL.y - alice.position.y;
+        // Phase 0: Justin moves to (6,19) facing down — velocity + random acceleration
+        const dx = LD1_ALICE_GOAL.x - justin.position.x;
+        const dy = LD1_ALICE_GOAL.y - justin.position.y;
         const dist = Math.hypot(dx, dy);
         if (dist < 5) {
           script.phase = 1;
           script.phaseStart = performance.now();
+          script.justinVel = { vx: 0, vy: 0 };
         } else {
-          const step = Math.min(LD1_ALICE_SPEED * dtSec, dist);
-          alice.position.x += (dx / dist) * step;
-          alice.position.y += (dy / dist) * step;
-          alice.facing = Math.PI / 2;  // down
+          const ux = dist > 0.1 ? dx / dist : 0, uy = dist > 0.1 ? dy / dist : 0;
+          script.justinVel.vx += (ux * 2.5 + (Math.random() - 0.5)) * LD1_ACCEL * dtSec;
+          script.justinVel.vy += (uy * 2.5 + (Math.random() - 0.5)) * LD1_ACCEL * dtSec;
+          let speed = Math.hypot(script.justinVel.vx, script.justinVel.vy);
+          if (speed > LD1_MAX_SPEED) {
+            script.justinVel.vx *= LD1_MAX_SPEED / speed;
+            script.justinVel.vy *= LD1_MAX_SPEED / speed;
+            speed = LD1_MAX_SPEED;
+          }
+          if (speed < LD1_BASE_SPEED * 0.2) {
+            script.justinVel.vx = ux * LD1_BASE_SPEED * 0.4 + (Math.random() - 0.5) * 30;
+            script.justinVel.vy = uy * LD1_BASE_SPEED * 0.4 + (Math.random() - 0.5) * 30;
+            speed = Math.hypot(script.justinVel.vx, script.justinVel.vy);
+          }
+          const move = Math.min(speed * dtSec, dist);
+          if (speed > 0.1) {
+            justin.position.x += (script.justinVel.vx / speed) * move;
+            justin.position.y += (script.justinVel.vy / speed) * move;
+          }
+          justin.facing = Math.PI / 2;  // down
         }
-        bob.position = { ...LD1_BOB_POS };
+        logan.position = { ...LD1_BOB_POS };
+        logan.facing = Math.PI / 2;  // down
       } else if (script.phase === 1) {
-        // Phase 1: Alice at (6,19), rotate FOV to face right
-        alice.position = { ...LD1_ALICE_GOAL };
-        bob.position = { ...LD1_BOB_POS };
+        // Phase 1: Justin at (6,19), rotate FOV to face right
+        justin.position = { ...LD1_ALICE_GOAL };
+        logan.position = { ...LD1_BOB_POS };
+        logan.facing = Math.PI / 2;  // down
         const targetFacing = 0;  // right
-        const diff = targetFacing - alice.facing;
+        const diff = targetFacing - justin.facing;
         if (Math.abs(diff) < 0.02) {
-          alice.facing = 0;
+          justin.facing = 0;
           script.phase = 2;
         } else {
-          alice.facing += Math.sign(diff) * Math.min(LD1_FACING_TURN, Math.abs(diff));
+          justin.facing += Math.sign(diff) * Math.min(LD1_FACING_TURN, Math.abs(diff));
         }
       } else if (script.phase === 2) {
-        // Phase 2: Target appears at (38, 24.663)
-        alice.position = { ...LD1_ALICE_GOAL };
-        alice.facing = 0;
-        bob.position = { ...LD1_BOB_POS };
+        // Phase 2: Target appears at (38, 24.663), Logan still at (6,5)
+        justin.position = { ...LD1_ALICE_GOAL };
+        justin.facing = 0;
+        logan.position = { ...LD1_BOB_POS };
+        logan.facing = Math.PI / 2;  // down
         const now = Date.now();
         s.targets = [{ id: 1, position: { ...LD1_TARGET_POS }, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
         script.phase = 3;
+      } else if (script.phase === 3) {
+        // Phase 3: Logan moves from (6,5) to (6,15), facing down; velocity + random acceleration
+        justin.position = { ...LD1_ALICE_GOAL };
+        justin.facing = 0;
+        const dx = LD1_BOB_GOAL.x - logan.position.x;
+        const dy = LD1_BOB_GOAL.y - logan.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 5) {
+          logan.position = { ...LD1_BOB_GOAL };
+          script.loganVel = { vx: 0, vy: 0 };
+          script.phase = 4;
+        } else {
+          const ux = dist > 0.1 ? dx / dist : 0, uy = dist > 0.1 ? dy / dist : 0;
+          script.loganVel.vx += (ux * 2.5 + (Math.random() - 0.5)) * LD1_ACCEL * dtSec;
+          script.loganVel.vy += (uy * 2.5 + (Math.random() - 0.5)) * LD1_ACCEL * dtSec;
+          let speed = Math.hypot(script.loganVel.vx, script.loganVel.vy);
+          if (speed > LD1_MAX_SPEED) {
+            script.loganVel.vx *= LD1_MAX_SPEED / speed;
+            script.loganVel.vy *= LD1_MAX_SPEED / speed;
+            speed = LD1_MAX_SPEED;
+          }
+          if (speed < LD1_BASE_SPEED * 0.2) {
+            script.loganVel.vx = ux * LD1_BASE_SPEED * 0.4 + (Math.random() - 0.5) * 30;
+            script.loganVel.vy = uy * LD1_BASE_SPEED * 0.4 + (Math.random() - 0.5) * 30;
+            speed = Math.hypot(script.loganVel.vx, script.loganVel.vy);
+          }
+          const move = Math.min(speed * dtSec, dist);
+          if (speed > 0.1) {
+            logan.position.x += (script.loganVel.vx / speed) * move;
+            logan.position.y += (script.loganVel.vy / speed) * move;
+          }
+          logan.facing = Math.PI / 2;  // down while moving
+        }
+        if (s.targets.length === 0) {
+          const now = Date.now();
+          s.targets = [{ id: 1, position: { ...LD1_TARGET_POS }, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
+        }
       } else {
-        // Phase 3: Steady state - Bob at (6,15), target visible
-        alice.position = { ...LD1_ALICE_GOAL };
-        alice.facing = 0;
-        bob.position = { ...LD1_BOB_POS };
+        // Phase 4: Logan at (6,15), turn FOV to face right, then steady
+        justin.position = { ...LD1_ALICE_GOAL };
+        justin.facing = 0;
+        logan.position = { ...LD1_BOB_GOAL };
+        const diff = 0 - logan.facing;
+        if (Math.abs(diff) > 0.02) {
+          logan.facing += Math.sign(diff) * Math.min(LD1_FACING_TURN, Math.abs(diff));
+        } else {
+          logan.facing = 0;
+        }
         if (s.targets.length === 0) {
           const now = Date.now();
           s.targets = [{ id: 1, position: { ...LD1_TARGET_POS }, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
@@ -278,7 +344,12 @@ export default function App() {
       }
       s.prevPrimary = { ...res.primary }; s.prevSecondary = { ...res.secondary };
       const canvas = canvasRef.current;
-      if (canvas) drawScene(canvas, agents, targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths);
+      if (canvas) {
+        const extraLines = liveDemo1 && targets.length > 0
+          ? targets.map(t => ({ agentId: "Logan", targetId: t.id }))
+          : [];
+        drawScene(canvas, agents, targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths, undefined, false, extraLines, liveDemo1);
+      }
       setTick(tickN); setResult(res);
       setUi({ agents: [...agents], targets: [...targets] });
     }
@@ -390,15 +461,15 @@ export default function App() {
     addEvent(`🧱 ${label} — A* pathfinding enabled`, "system");
   };
 
-  const liveDemo1ScriptRef = useRef({ phase: 0, startTime: 0 });
+  const liveDemo1ScriptRef = useRef({ phase: 0, startTime: 0, justinVel: { vx: 0, vy: 0 }, loganVel: { vx: 0, vy: 0 }, loganTurning: false });
 
   const initLiveDemo1Script = useCallback(() => {
-    const bobPos = feetToFrontendPos(6, 15);
+    const bobPos = feetToFrontendPos(6, 5);
     const alicePos = feetToFrontendPos(6, 9);
     const now = Date.now();
     stateRef.current.agents = [
-      { id: "Bob", position: bobPos, vel: { vx: 0, vy: 0 }, facing: 0 },
-      { id: "Alice", position: alicePos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
+      { id: "Logan", position: bobPos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
+      { id: "Justin", position: alicePos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
     ];
     stateRef.current.targets = [];
     stateRef.current.prevPrimary = {};
