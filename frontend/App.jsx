@@ -605,7 +605,7 @@ export default function App() {
                       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
                         <div style={{ width:9, height:9, borderRadius:"50%", background:color, boxShadow:`0 0 6px ${color}` }}/>
                         <span style={{ color, fontWeight:600, fontSize:12 }}>{agent.id}</span>
-                        <span style={{ fontSize:11, color:C.dim, marginLeft:4 }}>pos ({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)}) cm</span>
+                        <span style={{ fontSize:11, color:C.dim, marginLeft:4 }}>pos {(() => { const f = frontendPosToFeet(agent.position.x, agent.position.y); return `(${f.x_ft.toFixed(2)}, ${f.y_ft.toFixed(2)}) ft`; })()}</span>
                         <span style={{ marginLeft:"auto", display:"flex", gap:4 }}>
                           {prList.find(e=>e.role==="primary") && <span style={{ fontSize:10, fontWeight:600, color:C.green, border:`1px solid ${C.green}50`, borderRadius:3, padding:"2px 6px" }}>P1 ✓</span>}
                           {prList.find(e=>e.role==="secondary") && <span style={{ fontSize:10, fontWeight:600, color:C.gold, border:`1px solid ${C.gold}50`, borderRadius:3, padding:"2px 6px" }}>P2 ~</span>}
@@ -847,10 +847,10 @@ export default function App() {
                       <div style={{ fontSize:11, color:C.text, marginBottom:2 }}>{agent.id}</div>
                       <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Position</div>
                       <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>
-                        {isLiveDemo ? (() => {
+                        {(() => {
                           const { x_ft, y_ft } = frontendPosToFeet(agent.position.x, agent.position.y);
                           return `(${x_ft.toFixed(2)}, ${y_ft.toFixed(2)}) ft`;
-                        })() : `(${agent.position.x.toFixed(0)}, ${agent.position.y.toFixed(0)})`}
+                        })()}
                       </div>
                       <div style={{ fontSize:10, color:C.dim, marginTop:4, marginBottom:2 }}>Camera angle</div>
                       <div style={{ fontSize:11, color:C.cyan, fontWeight:600 }}>
