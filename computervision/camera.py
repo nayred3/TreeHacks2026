@@ -3,7 +3,7 @@ import time
 import os
 import json
 import socket
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import Optional, Dict, Any, List, Tuple
 
 import cv2
@@ -23,18 +23,19 @@ def pick_device() -> str:
 
 def resolve_tracker_path(tracker_name_or_path: str) -> str:
     """
-    Accepts:
-      - absolute/relative path to a yaml
-      - a known tracker name like "botsort.yaml" or "bytetrack.yaml"
-    Tries:
-      1) as-given (path)
-      2) ultralytics ROOT/cfg/trackers/<name>
-    Returns a string path or the original string if nothing resolves (Ultralytics may still resolve it).
+    Resolve tracker config: path to yaml, or name (e.g. botsort.yaml, botsort_reid.yaml).
+    Looks in script dir first, then Ultralytics cfg/trackers.
     """
     if os.path.exists(tracker_name_or_path):
-        return tracker_name_or_path
-
+        return os.path.abspath(tracker_name_or_path)
     name = tracker_name_or_path
+    try:
+        _script_dir = os.path.dirname(os.path.abspath(__file__))
+        candidate = os.path.join(_script_dir, name)
+        if os.path.exists(candidate):
+            return candidate
+    except Exception:
+        pass
     try:
         from ultralytics.utils import ROOT  # type: ignore
         candidate = os.path.join(str(ROOT), "cfg", "trackers", name)
@@ -42,7 +43,6 @@ def resolve_tracker_path(tracker_name_or_path: str) -> str:
             return candidate
     except Exception:
         pass
-
     return tracker_name_or_path
 
 
@@ -188,20 +188,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--show", action="store_true")
 
     p.add_argument("--model", default="yolov8n.pt")
-    p.add_argument("--conf", type=float, default=0.5)
+    p.add_argument("--conf", type=float, default=0.4)
     p.add_argument("--iou", type=float, default=0.5)
     p.add_argument("--det-fps", type=float, default=12.0)
-    p.add_argument("--tracker", default="botsort.yaml")
+    p.add_argument("--tracker", default="botsort_reid.yaml",
+                   help="Tracker config: botsort_reid.yaml (BoT-SORT with ReID), botsort.yaml, or bytetrack.yaml")
 
-    # ReID-lite knobs
-    p.add_argument("--reid-history", type=int, default=40)
-    p.add_argument("--reid-keep-seconds", type=float, default=6.0)
-    p.add_argument("--reid-min-iou", type=float, default=0.03)
-    p.add_argument("--reid-max-dist", type=float, default=0.18)
-    p.add_argument("--reid-appearance-thresh", type=float, default=0.72)
-    p.add_argument("--reid-tighten-crop", type=float, default=0.15)
-
-    # ---- NEW: camera pose + FOV metadata (for fusion) ----
+    # ---- Camera pose + FOV metadata (for fusion) ----
     p.add_argument("--cam-x", type=float, default=0.0, help="Camera x in the shared 2D map")
     p.add_argument("--cam-y", type=float, default=0.0, help="Camera y in the shared 2D map")
     p.add_argument("--yaw-deg", type=float, default=0.0, help="Camera heading in degrees in the 2D map frame")
@@ -228,79 +221,6 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def clamp_bbox(b: List[int], w: int, h: int) -> Tuple[int, int, int, int]:
-    x1, y1, x2, y2 = b
-    x1 = max(0, min(w - 1, x1))
-    y1 = max(0, min(h - 1, y1))
-    x2 = max(0, min(w - 1, x2))
-    y2 = max(0, min(h - 1, y2))
-    if x2 <= x1:
-        x2 = min(w - 1, x1 + 1)
-    if y2 <= y1:
-        y2 = min(h - 1, y1 + 1)
-    return x1, y1, x2, y2
-
-
-def tighten_bbox(b: List[int], tighten: float) -> List[int]:
-    x1, y1, x2, y2 = b
-    w = max(1, x2 - x1)
-    h = max(1, y2 - y1)
-    dx = int(w * tighten)
-    dy = int(h * tighten)
-    return [x1 + dx, y1 + dy, x2 - dx, y2 - dy]
-
-
-def bbox_iou(a: List[int], b: List[int]) -> float:
-    ax1, ay1, ax2, ay2 = a
-    bx1, by1, bx2, by2 = b
-    inter_x1 = max(ax1, bx1)
-    inter_y1 = max(ay1, by1)
-    inter_x2 = min(ax2, bx2)
-    inter_y2 = min(ay2, by2)
-    iw = max(0, inter_x2 - inter_x1)
-    ih = max(0, inter_y2 - inter_y1)
-    inter = iw * ih
-    area_a = max(1, (ax2 - ax1) * (ay2 - ay1))
-    area_b = max(1, (bx2 - bx1) * (by2 - by1))
-    return inter / (area_a + area_b - inter + 1e-9)
-
-
-def bbox_center(b: List[int]) -> Tuple[float, float]:
-    x1, y1, x2, y2 = b
-    return (0.5 * (x1 + x2), 0.5 * (y1 + y2))
-
-
-def center_dist_norm(a: List[int], b: List[int], frame_w: int, frame_h: int) -> float:
-    ax, ay = bbox_center(a)
-    bx, by = bbox_center(b)
-    dx = ax - bx
-    dy = ay - by
-    diag = (frame_w * frame_w + frame_h * frame_h) ** 0.5
-    return float((dx * dx + dy * dy) ** 0.5 / (diag + 1e-9))
-
-
-def appearance_hist_hsv(frame_bgr, bbox: List[int], tighten: float = 0.0) -> np.ndarray:
-    h, w = frame_bgr.shape[:2]
-    bb = tighten_bbox(bbox, tighten) if tighten > 0 else bbox
-    x1, y1, x2, y2 = clamp_bbox(bb, w, h)
-    crop = frame_bgr[y1:y2, x1:x2]
-    if crop.size == 0:
-        return np.zeros((180 + 256 + 256,), dtype=np.float32)
-
-    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-    hist_h = cv2.calcHist([hsv], [0], None, [180], [0, 180]).flatten()
-    hist_s = cv2.calcHist([hsv], [1], None, [256], [0, 256]).flatten()
-    hist_v = cv2.calcHist([hsv], [2], None, [256], [0, 256]).flatten()
-
-    feat = np.concatenate([hist_h, hist_s, hist_v]).astype(np.float32)
-    feat /= (np.linalg.norm(feat) + 1e-9)
-    return feat
-
-
-def cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
-    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
-
-
 def extract_tracks(result) -> List[Dict[str, Any]]:
     tracks: List[Dict[str, Any]] = []
     boxes = getattr(result, "boxes", None)
@@ -317,189 +237,6 @@ def extract_tracks(result) -> List[Dict[str, Any]]:
         tid = int(ids[i].item()) if ids is not None else -1
         tracks.append({"track_id": tid, "bbox": [int(x1), int(y1), int(x2), int(y2)], "conf": c})
     return tracks
-
-
-class ReidLiteStabilizer:
-    def __init__(self, history: int, keep_seconds: float, confirm_frames: int = 3):
-        self.history = history
-        self.keep_seconds = keep_seconds
-        self.confirm_frames = confirm_frames
-
-        self.appearance: Dict[int, List[np.ndarray]] = {}
-        self.last_bbox: Dict[int, List[int]] = {}
-        self.last_seen: Dict[int, float] = {}
-        self._pending: Dict[int, Tuple[int, int]] = {}
-
-    def _avg_feat(self, feats: List[np.ndarray]) -> np.ndarray:
-        if not feats:
-            return np.zeros((180 + 256 + 256,), dtype=np.float32)
-        m = np.mean(np.stack(feats, axis=0), axis=0)
-        m /= (np.linalg.norm(m) + 1e-9)
-        return m
-
-    def _bbox_area(self, b: List[int]) -> float:
-        x1, y1, x2, y2 = b
-        return float(max(1, (x2 - x1)) * max(1, (y2 - y1)))
-
-    def _bbox_ar(self, b: List[int]) -> float:
-        x1, y1, x2, y2 = b
-        w = max(1, (x2 - x1))
-        h = max(1, (y2 - y1))
-        return float(w / h)
-
-    def update_memory(self, frame_bgr, tracks: List[Dict[str, Any]], now: float, tighten: float) -> None:
-        for t in tracks:
-            tid = t["track_id"]
-            if tid == -1:
-                continue
-
-            feat = appearance_hist_hsv(frame_bgr, t["bbox"], tighten=tighten)
-            self.appearance.setdefault(tid, []).append(feat)
-            if len(self.appearance[tid]) > self.history:
-                self.appearance[tid] = self.appearance[tid][-self.history:]
-
-            self.last_bbox[tid] = t["bbox"]
-            self.last_seen[tid] = now
-
-        to_del = []
-        for tid, last in self.last_seen.items():
-            if now - last > self.keep_seconds:
-                to_del.append(tid)
-        for tid in to_del:
-            self.appearance.pop(tid, None)
-            self.last_bbox.pop(tid, None)
-            self.last_seen.pop(tid, None)
-
-        for cur_id, (old_id, cnt) in list(self._pending.items()):
-            if cur_id not in self.last_seen and cur_id not in [t["track_id"] for t in tracks]:
-                self._pending.pop(cur_id, None)
-            elif old_id not in self.last_seen:
-                self._pending.pop(cur_id, None)
-
-    def stabilize(
-        self,
-        frame_bgr,
-        tracks: List[Dict[str, Any]],
-        now: float,
-        frame_w: int,
-        frame_h: int,
-        min_iou_for_match: float,
-        max_dist_norm_for_match: float,
-        appearance_thresh: float,
-        tighten: float,
-        max_area_ratio: float = 2.2,
-        max_ar_ratio: float = 1.6,
-        score_margin: float = 0.10
-    ) -> List[Dict[str, Any]]:
-
-        current_ids = {t["track_id"] for t in tracks if t["track_id"] != -1}
-
-        memory_ids = set(self.appearance.keys())
-        candidate_old_ids = [oid for oid in memory_ids
-                             if oid not in current_ids and (now - self.last_seen.get(oid, -1e9) <= self.keep_seconds)]
-
-        if not candidate_old_ids:
-            self._pending.clear()
-            return tracks
-
-        cur_feats = [appearance_hist_hsv(frame_bgr, t["bbox"], tighten=tighten) for t in tracks]
-        used_old = set()
-
-        for i, t in enumerate(tracks):
-            cur_id = t["track_id"]
-            if cur_id == -1:
-                continue
-
-            cur_bbox = t["bbox"]
-
-            if near_border(cur_bbox, frame_w, frame_h, margin=10) or too_small(cur_bbox, frame_w, frame_h, min_frac=0.006):
-                self._pending.pop(cur_id, None)
-                continue
-
-            cur_feat = cur_feats[i]
-            best_old = None
-            best_score_adj = -1e9
-            best_raw_sim = -1.0
-
-            cur_area = self._bbox_area(cur_bbox)
-            cur_ar = self._bbox_ar(cur_bbox)
-
-            for old_id in candidate_old_ids:
-                if old_id in used_old:
-                    continue
-
-                old_bbox = self.last_bbox.get(old_id)
-                if old_bbox is None:
-                    continue
-
-                old_area = self._bbox_area(old_bbox)
-                old_ar = self._bbox_ar(old_bbox)
-
-                area_ratio = max(cur_area / (old_area + 1e-9), old_area / (cur_area + 1e-9))
-                ar_ratio = max(cur_ar / (old_ar + 1e-9), old_ar / (cur_ar + 1e-9))
-                if area_ratio > max_area_ratio or ar_ratio > max_ar_ratio:
-                    continue
-
-                iou = bbox_iou(cur_bbox, old_bbox)
-                distn = center_dist_norm(cur_bbox, old_bbox, frame_w, frame_h)
-                if not (iou >= min_iou_for_match or distn <= max_dist_norm_for_match):
-                    continue
-
-                old_feat = self._avg_feat(self.appearance.get(old_id, []))
-                raw_sim = cosine_sim(cur_feat, old_feat)
-                if raw_sim < appearance_thresh:
-                    continue
-
-                score_adj = raw_sim - 0.25 * distn
-                if score_adj > best_score_adj:
-                    best_score_adj = score_adj
-                    best_old = old_id
-                    best_raw_sim = raw_sim
-
-            if best_old is None:
-                self._pending.pop(cur_id, None)
-                continue
-
-            cur_feat_mean = self._avg_feat(self.appearance.get(cur_id, []))
-            cur_self = cosine_sim(cur_feat, cur_feat_mean) if cur_id in self.appearance else 0.0
-
-            if best_raw_sim < cur_self + score_margin:
-                self._pending.pop(cur_id, None)
-                continue
-
-            prev = self._pending.get(cur_id)
-            if prev is None or prev[0] != best_old:
-                self._pending[cur_id] = (best_old, 1)
-                continue
-            else:
-                self._pending[cur_id] = (best_old, prev[1] + 1)
-
-            if self._pending[cur_id][1] >= self.confirm_frames:
-                t["track_id"] = best_old
-                used_old.add(best_old)
-                self._pending.pop(cur_id, None)
-
-        return tracks
-
-
-def bbox_area(b: List[int]) -> int:
-    x1, y1, x2, y2 = b
-    return max(1, x2 - x1) * max(1, y2 - y1)
-
-
-def near_border(b: List[int], w: int, h: int, margin: int = 8) -> bool:
-    x1, y1, x2, y2 = b
-    return (x1 <= margin or y1 <= margin or x2 >= w - 1 - margin or y2 >= h - 1 - margin)
-
-
-def too_small(b: List[int], w: int, h: int, min_frac: float = 0.006) -> bool:
-    return bbox_area(b) < int(min_frac * (w * h))
-
-
-def unstable_box(prev: Optional[List[int]], cur: List[int], w: int, h: int, max_jump_norm: float = 0.04) -> bool:
-    if prev is None:
-        return False
-    return center_dist_norm(prev, cur, w, h) > max_jump_norm
 
 
 def draw_tracks(frame_bgr, tracks: List[Dict[str, Any]]) -> None:
@@ -648,23 +385,19 @@ def main() -> None:
     model = YOLO(args.model)
 
     tracker_path = resolve_tracker_path(args.tracker)
-    if "botsort" in args.tracker.lower() and not os.path.exists(tracker_path):
-        fallback = resolve_tracker_path("bytetrack.yaml")
+    if not os.path.exists(tracker_path):
+        fallback = resolve_tracker_path("botsort.yaml")
         print(f"[WARN] Could not resolve {args.tracker}. Falling back to: {fallback}")
         tracker_path = fallback
-    print(f"[INFO] Tracker config: {tracker_path}")
+    reid_enabled = "reid" in tracker_path.lower()
+    print(f"[INFO] Tracker config: {tracker_path}" + (" (BoT-SORT-ReID)" if reid_enabled else ""))
+    args.tracker_reid = reid_enabled  # for overlay
 
     det_min_dt = 1.0 / max(0.1, args.det_fps)
     last_update_time = 0.0
     last_tracks: List[Dict[str, Any]] = []
 
-    reid = ReidLiteStabilizer(
-        history=args.reid_history,
-        keep_seconds=args.reid_keep_seconds,
-        confirm_frames=3,
-    )
-
-    window_name = f"YOLO+Track+Stabilize: {args.camera_id}"
+    window_name = f"YOLO BoT-SORT: {args.camera_id}"
     if args.show:
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
@@ -717,40 +450,7 @@ def main() -> None:
                 last_update_time = now
                 did_update = True
 
-            if not hasattr(main, "_last_bbox_by_id"):
-                main._last_bbox_by_id = {}
-
-            eligible = []
-            ineligible = []
-
-            for t in last_tracks:
-                b = t["bbox"]
-                tid = t["track_id"]
-
-                prevb = main._last_bbox_by_id.get(tid)
-                main._last_bbox_by_id[tid] = b
-
-                if near_border(b, pkt.width, pkt.height, margin=10) or too_small(b, pkt.width, pkt.height, min_frac=0.006) or unstable_box(prevb, b, pkt.width, pkt.height):
-                    ineligible.append(t)
-                else:
-                    eligible.append(t)
-
-            eligible = reid.stabilize(
-                pkt.frame_bgr,
-                eligible,
-                now,
-                frame_w=pkt.width,
-                frame_h=pkt.height,
-                min_iou_for_match=args.reid_min_iou,
-                max_dist_norm_for_match=args.reid_max_dist,
-                appearance_thresh=args.reid_appearance_thresh,
-                tighten=args.reid_tighten_crop,
-            )
-
-            last_tracks = eligible + ineligible
-            reid.update_memory(pkt.frame_bgr, last_tracks, now, tighten=args.reid_tighten_crop)
-
-            # Emit tracks only when YOLO updated (at det_fps)
+            # Emit tracks when YOLO updated (at det_fps)
             if did_update and args.emit in ("tracks", "camera+tracks"):
                 emitter.send(make_tracks_msg(pkt, last_tracks))
 
@@ -758,7 +458,7 @@ def main() -> None:
             draw_tracks(vis, last_tracks)
             cv2.putText(
                 vis,
-                "BoT-SORT preferred + ReID-lite stabilizer. Press 'q' to quit.",
+                ("YOLO + BoT-SORT-ReID. Press 'q' to quit." if getattr(args, "tracker_reid", False) else "YOLO + BoT-SORT. Press 'q' to quit."),
                 (10, 28),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
