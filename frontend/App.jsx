@@ -181,7 +181,7 @@ export default function App() {
     // Live Demo 1 waypoints (feet)
     const LD1_ALICE_START = feetToFrontendPos(6, 9);
     const LD1_ALICE_GOAL = feetToFrontendPos(6, 19);
-    const LD1_BOB_POS = feetToFrontendPos(6, 15);
+    const LD1_BOB_POS = feetToFrontendPos(6, 5);
     const LD1_TARGET_POS = feetToFrontendPos(38, 20);
     const LD1_ALICE_SPEED = 80;  // cm per sec
     const LD1_FACING_TURN = 0.08;  // rad per tick for scripted turn
