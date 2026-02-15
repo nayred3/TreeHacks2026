@@ -154,11 +154,13 @@ export function parseFusionData(d) {
 /**
  * Fetch fusion data from the proxy endpoint.
  * Falls back to mock data when fusion server is unavailable.
- * Expects Vite proxy: /api/fusion -> http://127.0.0.1:5051
+ * In dev: Vite proxy /api/fusion -> http://127.0.0.1:5051
+ * In prod: set VITE_API_BASE to backend URL if different origin
  */
 export async function fetchFusionData() {
+  const apiBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE) || '';
   try {
-    const res = await fetch("/api/fusion/map");
+    const res = await fetch(`${apiBase}/api/fusion/map`);
     if (!res.ok) throw new Error(`Fusion API ${res.status}`);
     const d = await res.json();
     return parseFusionData(d);
