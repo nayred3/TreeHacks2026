@@ -404,6 +404,20 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.fill();
     ctx.restore();
 
+    // Radius markers: concentric arcs at intervals within the wedge
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.5;
+    const markerRadii = [FOV_WEDGE_RADIUS / 3, (2 * FOV_WEDGE_RADIUS) / 3, FOV_WEDGE_RADIUS];
+    for (const mr of markerRadii) {
+      ctx.beginPath();
+      ctx.arc(ap.x, ap.y, mr, startAngle, endAngle);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
     // Agent dot + label
     ctx.save();
     ctx.shadowColor = color; ctx.shadowBlur = isHl ? 30 : 14;
