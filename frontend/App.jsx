@@ -47,7 +47,8 @@ export default function App() {
   const [wallLayout, setWallLayout]     = useState(null);
   const [liveDemo1, setLiveDemo1]       = useState(false);
   const [liveDemo2, setLiveDemo2]       = useState(false);
-  const isLiveDemo = liveDemo1 || liveDemo2;
+  const [liveDemoA, setLiveDemoA]       = useState(false);  // Same script as Live Demo 1, independent button
+  const isLiveDemo = liveDemo1 || liveDemo2 || liveDemoA;
   const [wallsDropdownOpen, setWallsDropdownOpen] = useState(false);
   const wallsDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -74,22 +75,22 @@ export default function App() {
   }, []);
 
   const DEMO_AGENTS = [
-    { id: "Alice", position: { x: -255, y: 23 }, vel: { vx: 1.5, vy: 1.0 } },
-    { id: "Bob", position: { x: 308, y: -252 }, vel: { vx: -1.2, vy: 1.5 } },
+    { id: "Alice", position: { x: -255, y: 23 }, vel: { vx: 0.6, vy: 0.4 } },
+    { id: "Bob", position: { x: 308, y: -252 }, vel: { vx: -0.5, vy: 0.6 } },
   ];
   const DEMO_TARGETS = [
-    { id: 1, position: { x: 26, y: -69 }, vel: { vx: 0.5, vy: 0.5 }, confidence: 0.93 },
+    { id: 1, position: { x: 26, y: -69 }, vel: { vx: 0.2, vy: 0.2 }, confidence: 0.93 },
   ];
   const SAMPLE_AGENTS = [
-    { id: "Alice", position: { x: -250, y: -150 }, vel: { vx: 1.5, vy: 1.0 } },
-    { id: "Bob", position: { x: 250, y: -120 }, vel: { vx: -1.2, vy: 1.5 } },
-    { id: "Charlie", position: { x: 50, y: 150 }, vel: { vx: 0.8, vy: -1.8 } },
-    { id: "Diana", position: { x: -220, y: 120 }, vel: { vx: 1.6, vy: -0.9 } },
+    { id: "Alice", position: { x: -250, y: -150 }, vel: { vx: 0.6, vy: 0.4 } },
+    { id: "Bob", position: { x: 250, y: -120 }, vel: { vx: -0.5, vy: 0.6 } },
+    { id: "Charlie", position: { x: 50, y: 150 }, vel: { vx: 0.35, vy: -0.7 } },
+    { id: "Diana", position: { x: -220, y: 120 }, vel: { vx: 0.65, vy: -0.35 } },
   ];
   const SAMPLE_TARGETS = [
-    { id: 1, position: { x: -120, y: -50 }, vel: { vx: 2.0, vy: 1.0 }, confidence: 0.93 },
-    { id: 2, position: { x: 180, y: 60 }, vel: { vx: -1.6, vy: 1.2 }, confidence: 0.81 },
-    { id: 3, position: { x: 20, y: 40 }, vel: { vx: 1.0, vy: -2.0 }, confidence: 0.67 },
+    { id: 1, position: { x: -120, y: -50 }, vel: { vx: 0.8, vy: 0.4 }, confidence: 0.93 },
+    { id: 2, position: { x: 180, y: 60 }, vel: { vx: -0.65, vy: 0.5 }, confidence: 0.81 },
+    { id: 3, position: { x: 20, y: 40 }, vel: { vx: 0.4, vy: -0.8 }, confidence: 0.67 },
   ];
 
   // Init
@@ -184,8 +185,10 @@ export default function App() {
     const LD1_BOB_START = feetToFrontendPos(6, 5);
     const LD1_BOB_GOAL = feetToFrontendPos(6, 15);
     const LD1_TARGET_POS = feetToFrontendPos(38, 20);
-    const LD1_ALICE_SPEED = 80;  // cm per sec
-    const LD1_BOB_SPEED = 80;
+    const LD1_ALICE_SPEED = 45;  // cm per sec (human walking pace)
+    const LD1_BOB_SPEED = 45;
+    const LD1_ACCEL = 60;        // cm/s² for Live Demo A & 2
+    const LD1_MAX_SPEED = 70;
     const LD1_FACING_TURN = 0.08;  // rad per tick for scripted turn
 
     function runLiveDemo1Script(s, dtSec) {
@@ -270,17 +273,181 @@ export default function App() {
       }
     }
 
+    // Live Demo A waypoints (feet) — same as Live Demo 2
+    const LDA_ALICE_START = feetToFrontendPos(6, 19);
+    const LDA_ALICE_GOAL = feetToFrontendPos(24, 19);
+    const LDA_BOB_START = feetToFrontendPos(44, 7);
+    const LDA_BOB_GOAL = feetToFrontendPos(44, 11);
+    const LDA_TARGET_POS = feetToFrontendPos(40, 11);
+
+    // Live Demo A: Alice (6,19)→(24,19), then Bob (44,7)→(44,11), target at (40,11)
+    function runLiveDemoAScript(s, dtSec) {
+      const script = liveDemoAScriptRef.current;
+      const alice = s.agents.find(a => a.id === "Alice");
+      const bob = s.agents.find(a => a.id === "Bob");
+      if (!alice || !bob) return;
+
+      if (script.phase === 0) {
+        const dx = LDA_ALICE_GOAL.x - alice.position.x;
+        const dy = LDA_ALICE_GOAL.y - alice.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 5) {
+          script.phase = 1;
+          script.aliceVel = { vx: 0, vy: 0 };
+        } else {
+          const ux = dist > 0.1 ? dx / dist : 0, uy = dist > 0.1 ? dy / dist : 0;
+          script.aliceVel.vx += ux * LD1_ACCEL * dtSec;
+          script.aliceVel.vy += uy * LD1_ACCEL * dtSec;
+          let speed = Math.hypot(script.aliceVel.vx, script.aliceVel.vy);
+          if (speed > LD1_MAX_SPEED) {
+            script.aliceVel.vx *= LD1_MAX_SPEED / speed;
+            script.aliceVel.vy *= LD1_MAX_SPEED / speed;
+            speed = LD1_MAX_SPEED;
+          }
+          const step = Math.min(speed * dtSec, dist);
+          alice.position.x += (dx / dist) * step;
+          alice.position.y += (dy / dist) * step;
+        }
+        bob.position = { ...LDA_BOB_START };
+      } else if (script.phase === 1) {
+        alice.position = { ...LDA_ALICE_GOAL };
+        const dx = LDA_BOB_GOAL.x - bob.position.x;
+        const dy = LDA_BOB_GOAL.y - bob.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 5) {
+          bob.position = { ...LDA_BOB_GOAL };
+          script.phase = 2;
+          script.bobVel = { vx: 0, vy: 0 };
+        } else {
+          const ux = dist > 0.1 ? dx / dist : 0, uy = dist > 0.1 ? dy / dist : 0;
+          script.bobVel.vx += ux * LD1_ACCEL * dtSec;
+          script.bobVel.vy += uy * LD1_ACCEL * dtSec;
+          let speed = Math.hypot(script.bobVel.vx, script.bobVel.vy);
+          if (speed > LD1_MAX_SPEED) {
+            script.bobVel.vx *= LD1_MAX_SPEED / speed;
+            script.bobVel.vy *= LD1_MAX_SPEED / speed;
+            speed = LD1_MAX_SPEED;
+          }
+          const step = Math.min(speed * dtSec, dist);
+          bob.position.x += (dx / dist) * step;
+          bob.position.y += (dy / dist) * step;
+        }
+      } else if (script.phase === 2) {
+        // Phase 2: Bob at (44,11), turn 60° FOV to the left (Math.PI)
+        alice.position = { ...LDA_ALICE_GOAL };
+        bob.position = { ...LDA_BOB_GOAL };
+        const targetFacing = Math.PI;  // left
+        const diff = targetFacing - bob.facing;
+        const absDiff = Math.abs(diff);
+        if (absDiff < 0.02) {
+          bob.facing = Math.PI;
+          script.phase = 3;
+        } else {
+          bob.facing += Math.sign(diff) * Math.min(LD1_FACING_TURN, absDiff);
+        }
+      } else {
+        // Phase 3: Steady state
+        alice.position = { ...LDA_ALICE_GOAL };
+        bob.position = { ...LDA_BOB_GOAL };
+        bob.facing = Math.PI;
+      }
+      if (s.targets.length === 0) {
+        const now = Date.now();
+        s.targets = [{ id: 1, position: { ...LDA_TARGET_POS }, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
+      }
+    }
+
+    // Live Demo 2 waypoints (feet)
+    const LD2_ALICE_START = feetToFrontendPos(6, 19);
+    const LD2_ALICE_GOAL = feetToFrontendPos(24, 19);
+    const LD2_BOB_START = feetToFrontendPos(44, 7);
+    const LD2_BOB_GOAL = feetToFrontendPos(44, 11);
+    const LD2_TARGET_POS = feetToFrontendPos(40, 11);
+
+    function runLiveDemo2Script(s, dtSec) {
+      const script = liveDemo2ScriptRef.current;
+      const alice = s.agents.find(a => a.id === "Alice");
+      const bob = s.agents.find(a => a.id === "Bob");
+      if (!alice || !bob) return;
+
+      if (script.phase === 0) {
+        // Phase 0: Alice moves (6,19) -> (24,19), Bob stays at (44,7), target at (40,11)
+        const dx = LD2_ALICE_GOAL.x - alice.position.x;
+        const dy = LD2_ALICE_GOAL.y - alice.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 5) {
+          script.phase = 1;
+          script.aliceVel = { vx: 0, vy: 0 };
+        } else {
+          const ux = dist > 0.1 ? dx / dist : 0, uy = dist > 0.1 ? dy / dist : 0;
+          script.aliceVel.vx += ux * LD1_ACCEL * dtSec;
+          script.aliceVel.vy += uy * LD1_ACCEL * dtSec;
+          let speed = Math.hypot(script.aliceVel.vx, script.aliceVel.vy);
+          if (speed > LD1_MAX_SPEED) {
+            script.aliceVel.vx *= LD1_MAX_SPEED / speed;
+            script.aliceVel.vy *= LD1_MAX_SPEED / speed;
+            speed = LD1_MAX_SPEED;
+          }
+          const step = Math.min(speed * dtSec, dist);
+          alice.position.x += (dx / dist) * step;
+          alice.position.y += (dy / dist) * step;
+        }
+        bob.position = { ...LD2_BOB_START };
+      } else if (script.phase === 1) {
+        // Phase 1: Alice at (24,19), Bob moves (44,7) -> (44,11)
+        alice.position = { ...LD2_ALICE_GOAL };
+        const dx = LD2_BOB_GOAL.x - bob.position.x;
+        const dy = LD2_BOB_GOAL.y - bob.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 5) {
+          bob.position = { ...LD2_BOB_GOAL };
+          script.phase = 2;
+          script.bobVel = { vx: 0, vy: 0 };
+        } else {
+          const ux = dist > 0.1 ? dx / dist : 0, uy = dist > 0.1 ? dy / dist : 0;
+          script.bobVel.vx += ux * LD1_ACCEL * dtSec;
+          script.bobVel.vy += uy * LD1_ACCEL * dtSec;
+          let speed = Math.hypot(script.bobVel.vx, script.bobVel.vy);
+          if (speed > LD1_MAX_SPEED) {
+            script.bobVel.vx *= LD1_MAX_SPEED / speed;
+            script.bobVel.vy *= LD1_MAX_SPEED / speed;
+            speed = LD1_MAX_SPEED;
+          }
+          const step = Math.min(speed * dtSec, dist);
+          bob.position.x += (dx / dist) * step;
+          bob.position.y += (dy / dist) * step;
+        }
+      } else {
+        // Phase 2: Steady state
+        alice.position = { ...LD2_ALICE_GOAL };
+        bob.position = { ...LD2_BOB_GOAL };
+      }
+      if (s.targets.length === 0) {
+        const now = Date.now();
+        s.targets = [{ id: 1, position: { ...LD2_TARGET_POS }, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
+      }
+    }
+
     function loop(now) {
       animRef.current = requestAnimationFrame(loop);
       const s = stateRef.current;
       let agents, targets;
       const dtMs = Math.min(now - lastT, 100);
-      if (paused || dtMs < 50) return;
+      if (paused) return;
+      if (dtMs < 16 && !liveDemo1 && !liveDemo2 && !liveDemoA) return;  // Throttle normal sim only; demos run every frame
       lastT = now; tickN++;
       const dtSec = dtMs / 1000;
 
       if (liveDemo1) {
         runLiveDemo1Script(s, dtSec);
+        agents = s.agents;
+        targets = s.targets;
+      } else if (liveDemoA) {
+        runLiveDemoAScript(s, dtSec);
+        agents = s.agents;
+        targets = s.targets;
+      } else if (liveDemo2) {
+        runLiveDemo2Script(s, dtSec);
         agents = s.agents;
         targets = s.targets;
       } else {
@@ -309,14 +476,14 @@ export default function App() {
       }
       s.prevPrimary = { ...res.primary }; s.prevSecondary = { ...res.secondary };
       const canvas = canvasRef.current;
-      const extraLines = liveDemo1 && targets.length > 0 ? targets.map(t => ({ agentId: "Bob", targetId: t.id })) : [];
+      const extraLines = (liveDemo1 || liveDemoA) && targets.length > 0 ? targets.map(t => ({ agentId: "Bob", targetId: t.id })) : [];
       if (canvas) drawScene(canvas, agents, targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths, wallGrid, false, extraLines);
       setTick(tickN); setResult(res);
       setUi({ agents: [...agents], targets: [...targets] });
     }
     animRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animRef.current);
-  }, [paused, frozen, hl, showZones, addEvent, wallGrid, wallLayout, isLiveDemo, liveDemo1]);
+  }, [paused, frozen, hl, showZones, addEvent, wallGrid, wallLayout, isLiveDemo, liveDemo1, liveDemo2, liveDemoA]);
 
   const onCanvasClick = e => {
     if (!stateRef.current || !canvasRef.current) return;
@@ -422,7 +589,39 @@ export default function App() {
     addEvent(`🧱 ${label} — A* pathfinding enabled`, "system");
   };
 
-  const liveDemo1ScriptRef = useRef({ phase: 0, startTime: 0 });
+  const liveDemo1ScriptRef = useRef({ phase: 0, startTime: 0, aliceVel: { vx: 0, vy: 0 }, bobVel: { vx: 0, vy: 0 } });
+  const liveDemoAScriptRef = useRef({ phase: 0, aliceVel: { vx: 0, vy: 0 }, bobVel: { vx: 0, vy: 0 } });
+  const liveDemo2ScriptRef = useRef({ phase: 0, aliceVel: { vx: 0, vy: 0 }, bobVel: { vx: 0, vy: 0 } });
+
+  const initLiveDemo2Script = useCallback(() => {
+    const alicePos = feetToFrontendPos(6, 19);
+    const bobPos = feetToFrontendPos(44, 7);
+    const targetPos = feetToFrontendPos(40, 11);
+    const now = Date.now();
+    stateRef.current.agents = [
+      { id: "Alice", position: alicePos, vel: { vx: 0, vy: 0 }, facing: 0 },
+      { id: "Bob", position: bobPos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
+    ];
+    stateRef.current.targets = [{ id: 1, position: targetPos, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
+    stateRef.current.prevPrimary = {};
+    stateRef.current.prevSecondary = {};
+    liveDemo2ScriptRef.current = { phase: 0, aliceVel: { vx: 0, vy: 0 }, bobVel: { vx: 0, vy: 0 } };
+  }, []);
+
+  const initLiveDemoAScript = useCallback(() => {
+    const alicePos = feetToFrontendPos(6, 19);
+    const bobPos = feetToFrontendPos(44, 7);
+    const targetPos = feetToFrontendPos(40, 11);
+    const now = Date.now();
+    stateRef.current.agents = [
+      { id: "Alice", position: alicePos, vel: { vx: 0, vy: 0 }, facing: 0 },
+      { id: "Bob", position: bobPos, vel: { vx: 0, vy: 0 }, facing: Math.PI / 2 },
+    ];
+    stateRef.current.targets = [{ id: 1, position: targetPos, vel: { vx: 0, vy: 0 }, confidence: 0.93, lastSeen: now }];
+    stateRef.current.prevPrimary = {};
+    stateRef.current.prevSecondary = {};
+    liveDemoAScriptRef.current = { phase: 0, aliceVel: { vx: 0, vy: 0 }, bobVel: { vx: 0, vy: 0 } };
+  }, []);
 
   const initLiveDemo1Script = useCallback(() => {
     const bobPos = feetToFrontendPos(6, 5);
@@ -441,13 +640,18 @@ export default function App() {
   const toggleLiveDemo1 = () => {
     const next = !liveDemo1;
     if (next) {
+      setPaused(false);
       setLiveDemo2(false);
+      setLiveDemoA(false);
       addPresetWalls("schematic-47x37");
       initLiveDemo1Script();
     } else {
       if (liveDemo2) {
         addPresetWalls("schematic-47x37");
-        setDemoState(DEMO_AGENTS, DEMO_TARGETS);
+        initLiveDemo2Script();
+      } else if (liveDemoA) {
+        addPresetWalls("schematic-47x37");
+        initLiveDemoAScript();
       } else {
         clearSchematic();
       }
@@ -458,18 +662,45 @@ export default function App() {
   const toggleLiveDemo2 = () => {
     const next = !liveDemo2;
     if (next) {
+      setPaused(false);
       setLiveDemo1(false);
+      setLiveDemoA(false);
       addPresetWalls("schematic-47x37");
-      setDemoState(DEMO_AGENTS, DEMO_TARGETS);
+      initLiveDemo2Script();
     } else {
       if (liveDemo1) {
         addPresetWalls("schematic-47x37");
         initLiveDemo1Script();
+      } else if (liveDemoA) {
+        addPresetWalls("schematic-47x37");
+        initLiveDemoAScript();
       } else {
         clearSchematic();
       }
     }
     setLiveDemo2(next);
+  };
+
+  const toggleLiveDemoA = () => {
+    const next = !liveDemoA;
+    if (next) {
+      setPaused(false);
+      setLiveDemo1(false);
+      setLiveDemo2(false);
+      addPresetWalls("schematic-47x37");
+      initLiveDemoAScript();
+    } else {
+      if (liveDemo1) {
+        addPresetWalls("schematic-47x37");
+        initLiveDemo1Script();
+      } else if (liveDemo2) {
+        addPresetWalls("schematic-47x37");
+        initLiveDemo2Script();
+      } else {
+        clearSchematic();
+      }
+    }
+    setLiveDemoA(next);
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -616,7 +847,7 @@ export default function App() {
           <button onClick={toggleLiveDemo2} style={{
             background: liveDemo2 ? "linear-gradient(135deg, rgba(79,124,255,0.28) 0%, rgba(56,189,248,0.18) 100%)" : C.panel, border:`1px solid ${liveDemo2 ? C.accent + "99" : C.border}`, color:C.cyan,
             padding:"6px 12px", borderRadius:6, cursor:"pointer", fontSize:11, fontFamily:"inherit", boxShadow: liveDemo2 ? "0 0 14px rgba(79,124,255,0.3)" : "none",
-          }}>{liveDemo2 ? "LIVE DEMO 2 ON" : "LIVE DEMO 2"}</button>
+          }}>{liveDemoA ? "LIVE DEMO 2 ON" : "LIVE DEMO 2"}</button>
           <div ref={wallsDropdownRef} style={{ position:"relative" }}>
             <button onClick={() => setWallsDropdownOpen(o => !o)} style={{
               background: wallsDropdownOpen ? "rgba(251,191,36,0.12)" : C.panel, border:`1px solid ${C.gold}`, color:C.gold,

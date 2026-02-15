@@ -57,9 +57,9 @@ export const CAM_STREAM_URLS = {
 export const REASSIGN_THRESHOLD = 250;  // cm
 export const STALE_TTL = 10000;
 
-/** Movement: 50 cm/s. Loop runs every 50 ms → 2.5 cm per tick. */
+/** Movement: ~25 cm/s slow stroll for sample sim. Loop runs every 50 ms. */
 export const TICK_MS = 50;
-export const CM_PER_SEC = 50;
+export const CM_PER_SEC = 25;
 export const CM_PER_TICK = CM_PER_SEC * (TICK_MS / 1000);
 
 /** Convert cm to feet and format with 2 decimal places (for pathfinding distance display). */
