@@ -358,7 +358,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
   }
 
   // Agents: 60° facing-direction wedge then dot + label
-  const FOV_WEDGE_RADIUS = 64;  // px — visible cone showing facing direction
+  const FOV_WEDGE_RADIUS = 80;  // px — cone emerging from agent showing facing direction
   const FOV_WEDGE_SPAN = Math.PI / 3;  // 60° cone
 
   for (const a of agents) {
@@ -380,7 +380,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const startAngle = angleRad - FOV_WEDGE_SPAN / 2;
     const endAngle = angleRad + FOV_WEDGE_SPAN / 2;
 
-    // Draw 60° wedge (facing direction) behind the agent
+    // 60° facing cone — draw first so it extends from behind the agent
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(ap.x, ap.y);
@@ -389,14 +389,13 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     if (color.startsWith("#")) {
       const hex = color.slice(1);
       const R = parseInt(hex.slice(0, 2), 16), G = parseInt(hex.slice(2, 4), 16), B = parseInt(hex.slice(4, 6), 16);
-      ctx.fillStyle = `rgba(${R},${G},${B},0.45)`;
+      ctx.fillStyle = `rgba(${R},${G},${B},0.5)`;
     } else {
-      ctx.fillStyle = "rgba(136,136,136,0.4)";
+      ctx.fillStyle = "rgba(136,136,136,0.5)";
     }
     ctx.fill();
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = 1;
+    ctx.lineWidth = 3;
     ctx.stroke();
     ctx.restore();
 

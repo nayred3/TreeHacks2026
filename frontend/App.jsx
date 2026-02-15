@@ -91,6 +91,17 @@ export default function App() {
     addEvent("System online — 4 agents, 3 targets", "system");
   }, []);
 
+  // Load default wall layout on mount so map displays immediately
+  useEffect(() => {
+    const layout = createPresetWallLayout(WW, WH, "corridor");
+    setWallLayout(layout);
+    setWallGrid(wallLayoutToGrid(layout, WW, WH));
+    if (stateRef.current) {
+      stateRef.current.prevPrimary = {};
+      stateRef.current.prevSecondary = {};
+    }
+  }, []);
+
   // Loop
   useEffect(() => {
     if (!stateRef.current) return;
