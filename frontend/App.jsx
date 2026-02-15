@@ -441,7 +441,7 @@ export default function App() {
       <div style={{ flex:1, minHeight:0, display:"flex", gap:0, justifyContent:"center", alignItems:"stretch", minWidth:"min-content" }}>
 
         {/* Left column: Agent 1 & 2 camera views */}
-        <div style={{ display:"flex", flexDirection:"column", gap:8, width:360, minWidth:200, flexShrink:1 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:8, width:400, minWidth:200, flexShrink:1 }}>
           {agents.slice(0, 2).map(agent => {
             const color = AGENT_COLORS[agent.id] || "#888";
             const isHl = hl === agent.id;
@@ -761,7 +761,7 @@ export default function App() {
         </div>
 
         {/* Right column: Agent 3 & 4 camera views */}
-        <div style={{ display:"flex", flexDirection:"column", gap:8, width:360, minWidth:200, flexShrink:1 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:8, width:400, minWidth:200, flexShrink:1 }}>
           {agents.slice(2, 4).map(agent => {
             const color = AGENT_COLORS[agent.id] || "#888";
             const isHl = hl === agent.id;
