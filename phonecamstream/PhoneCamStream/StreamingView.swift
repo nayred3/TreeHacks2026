@@ -5,10 +5,9 @@ struct StreamingView: View {
     @ObservedObject var config: AppConfig
     var onStop: () -> Void
 
-    @StateObject private var cameraManager = CameraManager()
+    @StateObject private var arCamera = ARCameraManager()
     @StateObject private var frameStreamer = FrameStreamer()
     @StateObject private var positionSender = PositionSender()
-    @StateObject private var headingTracker = HeadingTracker()
     @StateObject private var peerClient = MoverPeerClient()
 
     @State private var framesSent: Int = 0
@@ -16,17 +15,23 @@ struct StreamingView: View {
     @State private var positionTask: Task<Void, Never>?
     @State private var hasStopped = false
 
-    /// Current position: UWB-derived if available, else manual fallback.
+    /// Best available position: UWB if anchor connected, else ARKit.
     private var currentPosition: [Double] {
-        peerClient.position ?? [config.posX, config.posY]
+        peerClient.position ?? arCamera.worldPosition
+    }
+
+    /// Best available heading: ARKit (derived from camera direction).
+    private var currentHeading: Double {
+        arCamera.heading
     }
 
     var body: some View {
         ZStack {
-            CameraPreviewView(session: cameraManager.session)
+            // AR camera preview (full-screen)
+            ARCameraPreview(session: arCamera.session)
                 .ignoresSafeArea()
 
-            if cameraManager.permissionDenied {
+            if arCamera.permissionDenied {
                 permissionDeniedOverlay
             }
 
@@ -75,68 +80,69 @@ struct StreamingView: View {
     // MARK: - Status Overlay
 
     private var statusOverlay: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 5) {
+            // Camera ID + heading
             HStack {
                 Text(config.cameraID)
                     .font(.headline.monospaced())
                 Spacer()
                 Image(systemName: "location.north.fill")
-                    .rotationEffect(.degrees(-headingTracker.heading))
-                Text("\(headingTracker.heading, specifier: "%.0f")°")
+                    .rotationEffect(.degrees(-currentHeading))
+                Text(String(format: "%.0f°", currentHeading))
                     .font(.caption.monospaced())
             }
 
             Divider().background(.white.opacity(0.3))
 
-            // UWB peer status
+            // ARKit tracking status
             HStack {
                 Circle()
-                    .fill(peerClient.isConnectedToAnchor ? .green : .yellow)
+                    .fill(arCamera.trackingStatus == "Tracking" ? .green : .yellow)
                     .frame(width: 8, height: 8)
-                Text(peerClient.statusText)
+                Text("ARKit: \(arCamera.trackingStatus)")
                     .font(.caption2)
                 Spacer()
-                if let pos = peerClient.position {
-                    Text(String(format: "UWB (%.1f, %.1f)", pos[0], pos[1]))
-                        .font(.caption2.monospaced())
-                        .foregroundColor(.green)
-                } else {
-                    Text("manual pos")
+                Text(String(format: "pos (%.2f, %.2f)m", currentPosition[0], currentPosition[1]))
+                    .font(.caption2.monospaced())
+            }
+
+            // UWB anchor status
+            HStack {
+                Circle()
+                    .fill(peerClient.isConnectedToAnchor ? .green :
+                          peerClient.statusText.contains("Searching") ? .yellow : .red)
+                    .frame(width: 8, height: 8)
+                Text(peerClient.isConnectedToAnchor ? "UWB: \(peerClient.statusText)" : "UWB: \(peerClient.statusText)")
+                    .font(.caption2)
+                Spacer()
+                if peerClient.position != nil {
+                    Text("UWB pos")
                         .font(.caption2)
-                        .foregroundColor(.yellow)
+                        .foregroundColor(.green)
                 }
             }
 
-            // Video stream status
+            // Video stream
             HStack {
                 Circle()
                     .fill(frameStreamer.isConnected ? .green : .red)
                     .frame(width: 8, height: 8)
-                Text("Video → Logan")
+                Text("Video stream")
                     .font(.caption2)
                 Spacer()
                 Text("\(framesSent) frames")
                     .font(.caption2.monospaced())
             }
 
-            // Position stream status
+            // Position stream
             HStack {
                 Circle()
                     .fill(positionSender.isConnected ? .green : .red)
                     .frame(width: 8, height: 8)
-                Text("Position → Justin")
+                Text("Position stream")
                     .font(.caption2)
                 Spacer()
                 Text("\(positionsSent) msgs")
-                    .font(.caption2.monospaced())
-            }
-
-            // Current position
-            HStack {
-                Text(String(format: "pos (%.2f, %.2f)m", currentPosition[0], currentPosition[1]))
-                    .font(.caption2.monospaced())
-                Spacer()
-                Text(String(format: "heading %.1f°", headingTracker.heading))
                     .font(.caption2.monospaced())
             }
         }
@@ -151,11 +157,12 @@ struct StreamingView: View {
     private func startEverything() {
         hasStopped = false
 
-        // Camera
-        cameraManager.targetFPS = config.streamFPS
-        cameraManager.startCapture()
+        // 1. ARKit camera + tracking
+        arCamera.targetFPS = config.streamFPS
+        arCamera.initialOffset = [config.posX, config.posY]
+        arCamera.startCapture()
 
-        // Frame streamer
+        // 2. Frame streamer → server
         frameStreamer.configure(
             targetHost: config.loganIP,
             targetPort: config.loganPortInt,
@@ -163,33 +170,31 @@ struct StreamingView: View {
             jpegQuality: config.jpegQuality
         )
 
-        // Position sender
+        // 3. Position sender → server
         positionSender.configure(
             targetHost: config.justinIP,
             targetPort: config.justinPortInt,
             cameraID: config.cameraID
         )
 
-        // Compass
-        headingTracker.start()
-
-        // UWB peer connection to anchor
+        // 4. UWB peer connection (optional — uses UWB position if anchor available)
         peerClient.start(cameraID: config.cameraID)
 
-        // Hook camera frames → streamer
-        cameraManager.onFrame = { [weak frameStreamer] sampleBuffer in
-            frameStreamer?.sendFrame(sampleBuffer) { success in
+        // 5. Hook ARKit frames → streamer
+        arCamera.onFrame = { [weak frameStreamer] pixelBuffer in
+            frameStreamer?.sendFrame(pixelBuffer) { success in
                 if success {
                     DispatchQueue.main.async { framesSent += 1 }
                 }
             }
         }
 
-        // Position update loop (10 Hz) — uses UWB position when available
+        // 6. Position update loop (10 Hz)
         positionTask = Task {
             while !Task.isCancelled {
-                let pos = currentPosition
-                let hdg = headingTracker.heading
+                // Read latest values from published properties
+                let pos = await MainActor.run { currentPosition }
+                let hdg = await MainActor.run { currentHeading }
 
                 positionSender.sendPosition(position: pos, heading: hdg) { success in
                     if success {
@@ -216,11 +221,10 @@ struct StreamingView: View {
     private func tearDown() {
         positionTask?.cancel()
         positionTask = nil
-        cameraManager.onFrame = nil
-        cameraManager.stopCapture()
+        arCamera.onFrame = nil
+        arCamera.stopCapture()
         frameStreamer.stop()
         positionSender.stop()
-        headingTracker.stop()
         peerClient.stop()
     }
 }
