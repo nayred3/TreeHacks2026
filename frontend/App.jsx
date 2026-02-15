@@ -3,7 +3,7 @@ import { WW, WH, AGENT_COLORS, TARGET_COLOR, REASSIGN_THRESHOLD, STALE_TTL } fro
 import { euclidean, randomWalk } from "./utils.js";
 import { runPriorityAssignment } from "./assignment.js";
 import { drawScene } from "./canvas.js";
-import { extractWallGrid, createPresetWallLayout, wallLayoutToGrid, gridToWallLayout, GRID_SIZE } from "./pathfinding.js";
+import { extractWallGrid, createPresetWallLayout, wallLayoutToGrid, gridToWallLayout, WALL_LAYOUT_OPTIONS, GRID_SIZE } from "./pathfinding.js";
 
 export default function App() {
   const canvasRef = useRef(null);
@@ -29,7 +29,14 @@ export default function App() {
   const [logFilter, setLogFilter] = useState("all");
   const [wallGrid, setWallGrid]         = useState(null);
   const [wallLayout, setWallLayout]     = useState(null);
+  const [wallsDropdownOpen, setWallsDropdownOpen] = useState(false);
+  const wallsDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const close = (e) => { if (wallsDropdownRef.current && !wallsDropdownRef.current.contains(e.target)) setWallsDropdownOpen(false); };
+    if (wallsDropdownOpen) { document.addEventListener("click", close); return () => document.removeEventListener("click", close); }
+  }, [wallsDropdownOpen]);
 
   const addEvent = useCallback((msg, type = "info") =>
     setEvents(prev => [{ msg, type, ts: Date.now() }, ...prev.slice(0, 59)]), []);
@@ -186,15 +193,17 @@ export default function App() {
     addEvent("🏗 Schematic cleared — euclidean distances restored", "system");
   };
 
-  const addPresetWalls = () => {
-    const layout = createPresetWallLayout(WW, WH);
+  const addPresetWalls = (layoutType = "corridor") => {
+    const layout = createPresetWallLayout(WW, WH, layoutType);
     setWallLayout(layout);
     setWallGrid(wallLayoutToGrid(layout, WW, WH));
     if (stateRef.current) {
       stateRef.current.prevPrimary = {};
       stateRef.current.prevSecondary = {};
     }
-    addEvent("🧱 Walls added — door gaps active, A* pathfinding enabled", "system");
+    setWallsDropdownOpen(false);
+    const label = WALL_LAYOUT_OPTIONS.find(o => o.id === layoutType)?.label || layoutType;
+    addEvent(`🧱 ${label} — A* pathfinding enabled`, "system");
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -322,10 +331,30 @@ export default function App() {
           <button onClick={spawn} style={{ background:"#180e0e", border:`1px solid #4a1010`, color:"#ff6b6b", padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊕ SPAWN</button>
           <button onClick={neutralise} style={{ background:"#0a160e", border:`1px solid #1a4020`, color:C.green, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊘ NEUTRALISE</button>
           <button onClick={scatter} style={{ background:"#12100a", border:`1px solid #3a3010`, color:C.yellow, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⚡ SCATTER</button>
-          <button onClick={addPresetWalls} style={{
-            background:"#13161f", border:`1px solid ${C.orange}80`, color:C.orange,
-            padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit"
-          }}>ADD WALLS 1</button>
+          <div ref={wallsDropdownRef} style={{ position:"relative" }}>
+            <button onClick={() => setWallsDropdownOpen(o => !o)} style={{
+              background: wallsDropdownOpen ? "#1a1f2e" : "#13161f", border:`1px solid ${C.orange}80`, color:C.orange,
+              padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit",
+              display:"flex", alignItems:"center", gap:6,
+            }}>
+              ADD WALLS ▾
+            </button>
+            {wallsDropdownOpen && (
+              <div style={{
+                position:"absolute", top:"100%", left:0, marginTop:4, background:C.panel, border:`1px solid ${C.border}`,
+                borderRadius:4, boxShadow:"0 4px 12px rgba(0,0,0,0.4)", minWidth:160, zIndex:20,
+              }}>
+                {WALL_LAYOUT_OPTIONS.map(({ id, label }) => (
+                  <button key={id} onClick={() => addPresetWalls(id)} style={{
+                    display:"block", width:"100%", textAlign:"left", padding:"8px 12px", border:"none",
+                    background:"transparent", color:C.text, cursor:"pointer", fontSize:10, fontFamily:"inherit",
+                  }} onMouseEnter={e => { e.target.style.background = C.border; }} onMouseLeave={e => { e.target.style.background = "transparent"; }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleSchematicUpload} style={{ display:"none" }}/>
           <button onClick={() => fileInputRef.current?.click()} style={{
             background:"linear-gradient(135deg, #0d1c2d, #15324d)",

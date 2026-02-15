@@ -7,7 +7,21 @@ const GRID_SIZE = 8; // pixels per grid cell
 
 export { GRID_SIZE };
 
-export function createPresetWallLayout(ww, wh) {
+/** Preset wall layout options for dropdown. */
+export const WALL_LAYOUT_OPTIONS = [
+  { id: "corridor", label: "7 rooms" },
+  { id: "simple", label: "1 room" },
+  { id: "two-room", label: "2-room split" },
+  { id: "grid", label: "4 rooms" },
+];
+
+/**
+ * Create a preset wall layout by type.
+ * @param {number} ww - world width
+ * @param {number} wh - world height
+ * @param {string} layoutType - one of: corridor, simple, two-room, grid
+ */
+export function createPresetWallLayout(ww, wh, layoutType = "corridor") {
   const walls = [];
   const doors = [];
 
@@ -16,10 +30,9 @@ export function createPresetWallLayout(ww, wh) {
   const addHDoor = (y, x0, x1) => doors.push({ x1: x0, y1: y, x2: x1, y2: y });
   const addVDoor = (x, y0, y1) => doors.push({ x1: x, y1: y0, x2: x, y2: y1 });
 
-  const doorSize = 56; // door opening in pixels (must be wider than wall grid thickness ~24px)
+  const doorSize = 56;
   const doorHalf = doorSize / 2;
 
-  // Helper: add a wall segment with a centered door
   const addHSegDoor = (y, x0, x1) => {
     addHWall(y, x0, x1);
     const mid = (x0 + x1) / 2;
@@ -31,48 +44,48 @@ export function createPresetWallLayout(ww, wh) {
     addVDoor(x, mid - doorHalf, mid + doorHalf);
   };
 
-  // Key x/y coordinates for wall intersections
-  const cy = wh * 0.46;       // corridor y
-  const vx1 = ww * 0.28;      // vertical divider 1
-  const vx2 = ww * 0.5;       // vertical divider 2
-  const vx3 = ww * 0.72;      // vertical divider 3
-  const bx1 = ww * 0.38;      // upper barrier 1
-  const bx2 = ww * 0.62;      // upper barrier 2
   const L = 12, R = ww - 12, T = 12, B = wh - 12;
+  const midX = ww / 2, midY = wh / 2;
 
-  // Top wall — split at upper barrier intersections
-  addHSegDoor(T, L, bx1);
-  addHSegDoor(T, bx1, bx2);
-  addHSegDoor(T, bx2, R);
+  if (layoutType === "simple") {
+    addVSegDoor(L, T, midY); addVSegDoor(L, midY, B);
+    addVSegDoor(R, T, midY); addVSegDoor(R, midY, B);
+    addHSegDoor(T, L, R);
+    addHSegDoor(B, L, R);
+    return { walls, doors };
+  }
 
-  // Bottom wall — split at vertical divider intersections
-  addHSegDoor(B, L, vx1);
-  addHSegDoor(B, vx1, vx2);
-  addHSegDoor(B, vx2, vx3);
-  addHSegDoor(B, vx3, R);
+  if (layoutType === "two-room") {
+    addVSegDoor(L, T, midY); addVSegDoor(L, midY, B);
+    addVSegDoor(R, T, midY); addVSegDoor(R, midY, B);
+    addHSegDoor(T, L, R);
+    addHSegDoor(B, L, R);
+    addVSegDoor(midX, T, B);
+    return { walls, doors };
+  }
 
-  // Left wall — split at corridor intersection
-  addVSegDoor(L, T, cy);
-  addVSegDoor(L, cy, B);
+  if (layoutType === "grid") {
+    const vx = ww / 2, hy = wh / 2;
+    addVSegDoor(L, T, midY); addVSegDoor(L, midY, B);
+    addVSegDoor(R, T, midY); addVSegDoor(R, midY, B);
+    addHSegDoor(T, L, R);
+    addHSegDoor(B, L, R);
+    addVSegDoor(vx, T, B);
+    addHSegDoor(hy, L, R);
+    return { walls, doors };
+  }
 
-  // Right wall — split at corridor intersection
-  addVSegDoor(R, T, cy);
-  addVSegDoor(R, cy, B);
+  // corridor (default)
+  const cy = wh * 0.46, vx1 = ww * 0.28, vx2 = ww * 0.5, vx3 = ww * 0.72;
+  const bx1 = ww * 0.38, bx2 = ww * 0.62;
 
-  // Interior corridor — split into spans between vertical dividers
-  addHSegDoor(cy, L, vx1);
-  addHSegDoor(cy, vx1, vx2);
-  addHSegDoor(cy, vx2, vx3);
-  addHSegDoor(cy, vx3, R);
-
-  // Vertical room dividers — each gets a centered door
-  addVSegDoor(vx1, cy, B);
-  addVSegDoor(vx2, cy, B);
-  addVSegDoor(vx3, cy, B);
-
-  // Lower partial barriers (no doors — short stub walls).
-  addVWall(bx1, T, wh * 0.22);
-  addVWall(bx2, T, wh * 0.24);
+  addHSegDoor(T, L, bx1); addHSegDoor(T, bx1, bx2); addHSegDoor(T, bx2, R);
+  addHSegDoor(B, L, vx1); addHSegDoor(B, vx1, vx2); addHSegDoor(B, vx2, vx3); addHSegDoor(B, vx3, R);
+  addVSegDoor(L, T, cy); addVSegDoor(L, cy, B);
+  addVSegDoor(R, T, cy); addVSegDoor(R, cy, B);
+  addHSegDoor(cy, L, vx1); addHSegDoor(cy, vx1, vx2); addHSegDoor(cy, vx2, vx3); addHSegDoor(cy, vx3, R);
+  addVSegDoor(vx1, cy, B); addVSegDoor(vx2, cy, B); addVSegDoor(vx3, cy, B);
+  addVWall(bx1, T, wh * 0.22); addVWall(bx2, T, wh * 0.24);
 
   return { walls, doors };
 }
