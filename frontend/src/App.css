@@ -1,7 +1,10 @@
 /* Neon HUD – Priority Assignment Engine */
 
 .app-hud {
+  flex: 1;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: linear-gradient(160deg, #0a0e14 0%, #0d1219 40%, #0a0c12 100%);
   color: rgba(255, 255, 255, 0.92);
 }
@@ -79,16 +82,21 @@
   z-index: 1;
   display: flex;
   flex: 1;
+  min-height: 0;
 }
 
 .map-column {
   flex: 1;
-  padding: 20px 20px 24px;
+  padding: 16px 20px 20px;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .map-container {
-  height: 520px;
+  flex: 1;
+  min-height: 360px;
+  height: min(520px, max(360px, 50vh));
   border-radius: 16px;
   border: 1px solid rgba(0, 255, 255, 0.2);
   box-shadow: 0 0 24px rgba(0, 255, 255, 0.08), inset 0 0 60px rgba(0, 0, 0, 0.3);
@@ -96,20 +104,98 @@
   background: rgba(0, 5, 12, 0.6);
 }
 
+.map-container-responsive {
+  display: flex;
+  align-items: stretch;
+}
+
+.sim-map-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.sim-map-container .minimap-area {
+  flex: 1;
+  min-height: 0;
+}
+
+.sim-map-container .camera-view-area {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(0, 255, 255, 0.15);
+}
+
+.sim-legend {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  background: rgba(0, 10, 20, 0.5);
+  font-size: 0.7rem;
+}
+
+.legend-title {
+  font-weight: 800;
+  color: #00ffff;
+  margin-bottom: 8px;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  opacity: 0.9;
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.legend-line {
+  width: 20px;
+  height: 0;
+  border-top: 2px solid;
+}
+
+.legend-line.dashed {
+  border-style: dashed;
+}
+
+.legend-cone {
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(135deg, transparent 50%, rgba(0, 255, 255, 0.3) 50%);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
 .map-canvas-hud {
   width: 100%;
   height: 100%;
+  display: block;
+}
+
+.map-container-responsive .map-canvas-hud {
+  flex: 1;
+  min-height: 0;
 }
 
 .right-column {
   display: flex;
   flex-direction: column;
-  width: 340px;
-  min-width: 340px;
+  width: min(340px, 28vw);
+  min-width: 280px;
+  max-width: 360px;
   border-left: 1px solid rgba(255, 255, 255, 0.12);
   padding: 16px;
   gap: 16px;
   background: rgba(0, 0, 0, 0.2);
+  overflow-y: auto;
 }
 
 /* Inspector card */
@@ -340,9 +426,32 @@
   color: #ff00ff;
 }
 
+.visibility-badge {
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.visibility-badge.visible {
+  background: rgba(80, 255, 80, 0.2);
+  color: #50ff50;
+}
+
+.visibility-badge.lost {
+  background: rgba(255, 100, 100, 0.2);
+  color: #ff6464;
+}
+
+.visibility-badge.mini {
+  font-size: 0.55rem;
+  padding: 1px 4px;
+}
+
 #root {
   max-width: none;
   margin: 0;
   padding: 0;
   text-align: left;
+  min-height: 100vh;
 }

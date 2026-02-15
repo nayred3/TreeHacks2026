@@ -103,11 +103,17 @@ export default function PriorityPanel({
               </div>
               <div className="inspector-row">
                 <span className="inspector-label">Last seen</span>
-                <span>{(selectedTarget.secondsSinceSeen ?? selectedTarget.lastSeenSeconds ?? selectedTarget.ageMs / 1000 ?? 0).toFixed(1)}s</span>
+                <span>{(selectedTarget.secondsSinceSeen ?? selectedTarget.lastSeenSeconds ?? (selectedTarget.ageMs ?? 0) / 1000 ?? 0).toFixed(1)}s ago</span>
               </div>
               <div className="inspector-row">
-                <span className="inspector-label">Visible now</span>
-                <span>{selectedTarget.visibleNow ? "Yes" : "No"}</span>
+                <span className="inspector-label">Status</span>
+                <span>
+                  {selectedTarget.visibleNow ? (
+                    <span className="visibility-badge visible">VISIBLE</span>
+                  ) : (
+                    <span className="visibility-badge lost">LOST</span>
+                  )}
+                </span>
               </div>
               <div className="inspector-row">
                 <span className="inspector-label">Confidence</span>
@@ -181,7 +187,10 @@ export default function PriorityPanel({
                     >
                       <span className="target-label">{targetDisplayName(targets, target.id, target.type)}</span>
                       <span className="target-status">{targetStatus}</span>
-                      <span className="target-distance">{d}m</span>
+                      <span className={`visibility-badge mini ${target.visibleNow !== false ? "visible" : "lost"}`}>
+                        {target.visibleNow !== false ? "VIS" : "LOST"}
+                      </span>
+                      <span className="target-distance">{Number.isFinite(d) ? `${Math.round(d)}m` : "—"}</span>
                       <span className="target-last-seen">{lastSeenSec.toFixed(1)}s</span>
                       {isP1 && <span className="priority-badge p1">P1</span>}
                       {isP2 && !isP1 && <span className="priority-badge p2">P2</span>}

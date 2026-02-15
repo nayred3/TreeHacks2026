@@ -99,6 +99,28 @@ let missionSpeed = 12;
 const MISSION_SPEED_MIN = 4;
 const MISSION_SPEED_MAX = 40;
 
+// Simulate LOS dropouts: periodically occlude random targets so last-seen increases
+let simulateLOSDropouts = false;
+let losDropoutIntervalId = null;
+const LOS_DROPOUT_INTERVAL_MS = 4000;
+
+export function setSimulateLOSDropouts(enabled) {
+  simulateLOSDropouts = Boolean(enabled);
+  if (losDropoutIntervalId) {
+    clearInterval(losDropoutIntervalId);
+    losDropoutIntervalId = null;
+  }
+  if (simulateLOSDropouts) {
+    losDropoutIntervalId = setInterval(() => {
+      const active = mockTargets.filter((t) => t.status !== "rescued");
+      if (active.length > 0) {
+        const t = active[Math.floor(Math.random() * active.length)];
+        occludedTargets.set(t.id, Date.now() + 3000);
+      }
+    }, LOS_DROPOUT_INTERVAL_MS);
+  }
+}
+
 // Vision model (mock only)
 let VISION_RADIUS = 180;
 const occludedTargets = new Map(); // id -> expiryMs
@@ -194,16 +216,17 @@ function runMissionStep() {
     if (!target || target.status === "rescued") {
       return { ...a, mode: "idle", currentTargetId: null };
     }
-    const dx = target.x - a.x;
-    const dy = target.y - a.y;
+    const ax = Number(a.x) || 0, ay = Number(a.y) || 0;
+    const tx = Number(target.x) || 0, ty = Number(target.y) || 0;
+    const dx = tx - ax, dy = ty - ay;
     const d = Math.hypot(dx, dy);
-    if (d <= ARRIVAL_RADIUS) {
+    if (d <= ARRIVAL_RADIUS || !Number.isFinite(d)) {
       arrived.add(a.currentTargetId);
-      return { ...a, x: target.x, y: target.y, mode: "idle", currentTargetId: null };
+      return { ...a, x: tx, y: ty, mode: "idle", currentTargetId: null };
     }
     const step = Math.min(speed, Math.max(0, d - ARRIVAL_RADIUS));
-    const nx = a.x + (dx / d) * step;
-    const ny = a.y + (dy / d) * step;
+    const nx = ax + (dx / d) * step;
+    const ny = ay + (dy / d) * step;
     const cx = Math.max(20, Math.min(MOCK_BOUNDS.w - 20, nx));
     const cy = Math.max(20, Math.min(MOCK_BOUNDS.h - 20, ny));
     return { ...a, x: cx, y: cy };
@@ -289,14 +312,21 @@ export function getMockTargetsMove() {
 
 function computeMockAssignments() {
   const out = [];
-  mockAgents.forEach((agent, ai) => {
-    const withDist = mockTargets.map((t) => ({
-      targetId: t.id,
-      distance: Math.hypot(t.x - agent.x, t.y - agent.y),
-    }));
+  const activeTargets = mockTargets.filter((t) => t.status !== "rescued");
+  mockAgents.forEach((agent) => {
+    const ax = Number(agent.x);
+    const ay = Number(agent.y);
+    if (!Number.isFinite(ax) || !Number.isFinite(ay)) return;
+    const withDist = activeTargets.map((t) => {
+      const tx = Number(t.x);
+      const ty = Number(t.y);
+      const d = Number.isFinite(tx) && Number.isFinite(ty) ? Math.hypot(tx - ax, ty - ay) : Infinity;
+      return { targetId: t.id, distance: d };
+    });
     withDist.sort((a, b) => a.distance - b.distance);
-    if (withDist[0]) out.push({ agentId: agent.id, targetId: withDist[0].targetId, priority: 1, distance: withDist[0].distance });
-    if (withDist[1]) out.push({ agentId: agent.id, targetId: withDist[1].targetId, priority: 2, distance: withDist[1].distance });
+    const filtered = withDist.filter((w) => w.distance < Infinity);
+    if (filtered[0]) out.push({ agentId: agent.id, targetId: filtered[0].targetId, priority: 1, distance: filtered[0].distance });
+    if (filtered[1]) out.push({ agentId: agent.id, targetId: filtered[1].targetId, priority: 2, distance: filtered[1].distance });
   });
   return out;
 }
@@ -337,6 +367,7 @@ function startMock() {
   initMockState();
   occludedTargets.clear();
   targetLastSeenAtMs.clear();
+  setSimulateLOSDropouts(false);
   if (mockTickId != null) clearInterval(mockTickId);
   mockTickId = null;
   if (mockDemoRunning) mockTickId = setInterval(tickMock, TICK_MS);

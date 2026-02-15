@@ -1,18 +1,28 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+/**
+ * Unified live store: deterministic sim clock, canonical state, backend adapter.
+ * State: responders[], targets[], assignments[]. Updates via tick(), setPaused(), etc.
+ */
+
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import * as backendClient from "../api/backendClient.js";
 import { TOPICS, EVENTS } from "../api/backendConfig.js";
+import { adaptResponders, adaptTargets, adaptAssignments } from "../adapters/WorldStateAdapter.js";
 
-// —— Temporal layer config ——
 const TRAIL_MAX_POINTS = 25;
 const TRAIL_MIN_DT_MS = 100;
 const TRAIL_MIN_DIST_PX = 4;
 const TTL_MS = 20000;
-const FADE_START_MS = 3000;  // >3s start fading
-const FADE_END_MS = 10000;   // >10s very dim
-const STALE_BADGE_MS = 8000; // show STALE badge after this
+const FADE_START_MS = 3000;
+const FADE_END_MS = 10000;
+const STALE_BADGE_MS = 8000;
+const TICK_INTERVAL_MS = 100;
+const MAX_DT_MS = 100;
+const SPEEDS = [1, 2];
 
 function dist(a, b) {
-  return Math.hypot((b.x ?? 0) - (a.x ?? 0), (b.y ?? 0) - (a.y ?? 0));
+  const ax = a?.x ?? 0, ay = a?.y ?? 0;
+  const bx = b?.x ?? 0, by = b?.y ?? 0;
+  return Math.hypot(bx - ax, by - ay);
 }
 
 function ensureEntity(map, id, now) {
@@ -25,6 +35,7 @@ function ensureEntity(map, id, now) {
 }
 
 function appendToHistory(ent, x, y, t) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
   const prev = ent.history[ent.history.length - 1];
   const dt = prev ? t - prev.t : TRAIL_MIN_DT_MS;
   const d = prev ? dist(prev, { x, y }) : TRAIL_MIN_DIST_PX;
@@ -34,20 +45,18 @@ function appendToHistory(ent, x, y, t) {
   }
 }
 
-/**
- * Unified live store: connectStatus, agents/targets/assignments/observations,
- * demo controls. Stays backwards compatible with DemoControlPanel:
- * store has { isRunning, debug, startDemo, resetDemo, toggle }.
- */
 export function useLiveStore() {
   const [connectStatus, setConnectStatus] = useState("mock");
-  const [agents, setAgents] = useState([]);
-  const [targets, setTargets] = useState([]);
-  const [assignments, setAssignments] = useState([]);
+  const [rawAgents, setRawAgents] = useState([]);
+  const [rawTargets, setRawTargets] = useState([]);
+  const [rawAssignments, setRawAssignments] = useState([]);
   const [observations, setObservations] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
   const [resetNonce, setResetNonce] = useState(0);
-  const [isFrozen, setIsFrozen] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [speedIndex, setSpeedIndex] = useState(0);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [lastTickMs, setLastTickMs] = useState(() => Date.now());
   const [zonesEnabled, setZonesEnabled] = useState(false);
   const [debug, setDebug] = useState({
     showLabels: true,
@@ -56,16 +65,18 @@ export function useLiveStore() {
     showTrails: true,
     showLastSeenTimers: true,
   });
-  const [tick, setTick] = useState(0);
-  const [selectedEntity, setSelectedEntity] = useState(null); // { type: 'agent'|'target', id }
-  const [mapOffset, setMapOffset] = useState({ x: 0, y: 0 }); // for Focus
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [mapOffset, setMapOffset] = useState({ x: 0, y: 0 });
   const [mockTargetsMove, setMockTargetsMoveState] = useState(false);
   const [missionAutoRun, setMissionAutoRunState] = useState(false);
   const [missionSpeed, setMissionSpeedState] = useState(12);
+  const [simulateLOSDropouts, setSimulateLOSDropoutsState] = useState(false);
+  const [cameraViewShowAll, setCameraViewShowAll] = useState(false);
   const startedRef = useRef(false);
   const agentEntityMapRef = useRef(new Map());
   const targetEntityMapRef = useRef(new Map());
-  const frozenAtMsRef = useRef(null);
+  const lastTickTimeRef = useRef(Date.now());
+  const [frozenSimTimeMs, setFrozenSimTimeMs] = useState(null);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -73,27 +84,33 @@ export function useLiveStore() {
     backendClient.start((status) => setConnectStatus(status ?? backendClient.getStatus()));
   }, []);
 
-  // Freeze clock: when frozen, age stops increasing
+  // Deterministic sim clock: when paused, sim time freezes; otherwise advances by dt
   useEffect(() => {
-    if (isFrozen) frozenAtMsRef.current = Date.now();
-  }, [isFrozen]);
-
-  // 10Hz tick for age updates when not frozen
-  useEffect(() => {
-    if (isFrozen) return;
-    const id = setInterval(() => setTick((t) => t + 1), 100);
-    return () => clearInterval(id);
-  }, [isFrozen]);
+    if (paused) {
+      setFrozenSimTimeMs((prev) => prev ?? nowMs);
+      return;
+    }
+    setFrozenSimTimeMs(null);
+    const tick = () => {
+      const t = Date.now();
+      const dt = Math.min(MAX_DT_MS, t - lastTickTimeRef.current);
+      lastTickTimeRef.current = t;
+      setNowMs(t);
+      setLastTickMs(t);
+    };
+    const interval = setInterval(tick, TICK_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [paused]);
 
   useEffect(() => {
     const unsubA = backendClient.subscribe(TOPICS.agents, (data) => {
-      setAgents(Array.isArray(data) ? data : [data].filter(Boolean));
+      setRawAgents(Array.isArray(data) ? data : [data].filter(Boolean));
     });
     const unsubT = backendClient.subscribe(TOPICS.tracks, (data) => {
-      setTargets(Array.isArray(data) ? data : [data].filter(Boolean));
+      setRawTargets(Array.isArray(data) ? data : [data].filter(Boolean));
     });
     const unsubAsn = backendClient.subscribe(TOPICS.assignments, (data) => {
-      setAssignments(Array.isArray(data) ? data : [data].filter(Boolean));
+      setRawAssignments(Array.isArray(data) ? data : [data].filter(Boolean));
     });
     const unsubO = backendClient.subscribe(TOPICS.observations, (data) => {
       setObservations(Array.isArray(data) ? data : [data].filter(Boolean));
@@ -106,103 +123,139 @@ export function useLiveStore() {
     };
   }, []);
 
-  const { agentsVM, targetsVM } = useMemo(() => {
-    const now = Date.now();
-    const effectiveNow = isFrozen && frozenAtMsRef.current != null ? frozenAtMsRef.current : now;
+  const effectiveNowMs = paused && frozenSimTimeMs != null ? frozenSimTimeMs : nowMs;
+
+  const { agents: agentsVM, targets: targetsVM, assignments: assignmentsVM } = useMemo(() => {
+    const agents = adaptResponders(rawAgents);
+    const targets = adaptTargets(rawTargets);
+    const activeTargetIds = new Set(targets.filter((t) => t.status !== "rescued").map((t) => t.id));
+    const assignments = adaptAssignments(rawAssignments, activeTargetIds);
+
     const agentMap = agentEntityMapRef.current;
     const targetMap = targetEntityMapRef.current;
 
     agents.forEach((a) => {
-      const ent = ensureEntity(agentMap, a.id, now);
-      // TODO(BACKEND-CONTRACT): if backend provides timestamp, use it
-      const ts = a.timestamp ?? a.lastSeenAtMs ?? now;
-      ent.lastSeenAtMs = typeof ts === "number" ? ts : now;
+      const ent = ensureEntity(agentMap, a.id, effectiveNowMs);
+      const ts = a.timestamp ?? effectiveNowMs;
+      ent.lastSeenAtMs = typeof ts === "number" && Number.isFinite(ts) ? ts : effectiveNowMs;
       appendToHistory(ent, a.x, a.y, ent.lastSeenAtMs);
       agentMap.set(a.id, ent);
     });
     targets.forEach((t) => {
-      const ent = ensureEntity(targetMap, t.id, now);
-      const ts = t.timestamp ?? t.lastSeenAtMs ?? now;
-      ent.lastSeenAtMs = typeof ts === "number" ? ts : now;
+      const ent = ensureEntity(targetMap, t.id, effectiveNowMs);
+      const ts = t.lastSeenAtMs ?? t.timestamp ?? effectiveNowMs;
+      ent.lastSeenAtMs = typeof ts === "number" && Number.isFinite(ts) ? ts : effectiveNowMs;
       appendToHistory(ent, t.x, t.y, ent.lastSeenAtMs);
       targetMap.set(t.id, ent);
     });
 
-    // TTL cleanup: remove stale entities from maps
     const pruneMap = (map, currentIds) => {
       for (const id of map.keys()) {
         const ent = map.get(id);
-        const ageMs = effectiveNow - ent.lastSeenAtMs;
+        const ageMs = effectiveNowMs - ent.lastSeenAtMs;
         if (!currentIds.has(id) || ageMs > TTL_MS) map.delete(id);
       }
     };
     pruneMap(agentMap, new Set(agents.map((a) => a.id)));
     pruneMap(targetMap, new Set(targets.map((t) => t.id)));
 
-    const buildVM = (list, map) =>
+    const targetById = new Map(targets.map((t) => [t.id, t]));
+    const buildAgentVM = (list, map) =>
       list
         .map((e) => {
           const ent = map.get(e.id);
           if (!ent) return null;
-          const ageMs = effectiveNow - ent.lastSeenAtMs;
+          const ageMs = effectiveNowMs - ent.lastSeenAtMs;
+          if (ageMs > TTL_MS) return null;
+          // Compute yaw for camera frustum when moving toward target
+          let yaw = e.yaw;
+          if (yaw == null && e.currentTargetId) {
+            const tgt = targetById.get(e.currentTargetId);
+            if (tgt && Number.isFinite(tgt.x) && Number.isFinite(tgt.y) && Number.isFinite(e.x) && Number.isFinite(e.y)) {
+              yaw = Math.atan2(tgt.y - e.y, tgt.x - e.x);
+            }
+          }
+          if (yaw == null) yaw = 0;
+          return {
+            ...e,
+            lastSeenAtMs: ent.lastSeenAtMs,
+            ageMs,
+            lastSeenSeconds: ageMs / 1000,
+            trail: [...ent.history],
+            visibleNow: e.visibleNow,
+            secondsSinceSeen: e.secondsSinceSeen ?? ageMs / 1000,
+            type: e.type,
+            confidence: e.confidence,
+            status: e.status,
+            assignedAgentId: e.assignedAgentId,
+            mode: e.mode,
+            currentTargetId: e.currentTargetId,
+            yaw,
+            fovDeg: e.fovDeg ?? 60,
+          };
+        })
+        .filter(Boolean);
+    const buildTargetVM = (list, map) =>
+      list
+        .map((e) => {
+          const ent = map.get(e.id);
+          if (!ent) return null;
+          const ageMs = effectiveNowMs - ent.lastSeenAtMs;
           if (ageMs > TTL_MS) return null;
           return {
             ...e,
             lastSeenAtMs: ent.lastSeenAtMs,
-          ageMs,
-          lastSeenSeconds: ageMs / 1000,
-          trail: [...ent.history],
-          visibleNow: e.visibleNow,
-          secondsSinceSeen: e.secondsSinceSeen ?? ageMs / 1000,
-          type: e.type,
-          confidence: e.confidence,
-          status: e.status,
-          assignedAgentId: e.assignedAgentId,
-          mode: e.mode,
-          currentTargetId: e.currentTargetId,
-        };
+            ageMs,
+            lastSeenSeconds: ageMs / 1000,
+            trail: [...ent.history],
+            visibleNow: e.visibleNow,
+            secondsSinceSeen: e.secondsSinceSeen ?? ageMs / 1000,
+            type: e.type,
+            confidence: e.confidence,
+            status: e.status,
+            assignedAgentId: e.assignedAgentId,
+          };
         })
         .filter(Boolean);
 
     return {
-      agentsVM: buildVM(agents, agentMap),
-      targetsVM: buildVM(targets, targetMap),
+      agents: buildAgentVM(agents, agentMap),
+      targets: buildTargetVM(targets, targetMap),
+      assignments,
     };
-  }, [agents, targets, tick, isFrozen]);
+  }, [rawAgents, rawTargets, rawAssignments, effectiveNowMs, nowMs]);
+
+  const setPausedFn = useCallback((p) => {
+    setPaused(p);
+    backendClient.setFrozen(p);
+  }, []);
+
+  const togglePause = useCallback(() => {
+    setPaused((prev) => {
+      const next = !prev;
+      backendClient.setFrozen(next);
+      return next;
+    });
+  }, []);
 
   function startDemo() {
     setIsRunning(true);
-    setIsFrozen(false);
+    setPaused(false);
     backendClient.setFrozen(false);
-    // TODO(BACKEND-CONTRACT): REPLACE_ME — payload shape may differ
     backendClient.send(EVENTS.demo_start, {});
   }
 
   function resetDemo() {
     setIsRunning(false);
-    setIsFrozen(false);
+    setPaused(false);
     backendClient.setFrozen(false);
     agentEntityMapRef.current.clear();
     targetEntityMapRef.current.clear();
     setResetNonce((n) => n + 1);
-    // TODO(BACKEND-CONTRACT): REPLACE_ME — payload shape may differ
     backendClient.send(EVENTS.demo_reset, {});
   }
 
-  function toggleFreeze() {
-    setIsFrozen((prev) => {
-      const next = !prev;
-      backendClient.setFrozen(next);
-      return next;
-    });
-  }
-
-  function toggle(key) {
-    setDebug((d) => ({ ...d, [key]: !d[key] }));
-  }
-
   function addPin(x, y) {
-    // TODO(BACKEND-CONTRACT): REPLACE_ME — payload shape may differ
     backendClient.send(EVENTS.pin_create, { x, y });
   }
 
@@ -210,7 +263,6 @@ export function useLiveStore() {
     if (backendClient.getStatus() === "mock") {
       backendClient.spawnMockTarget();
     } else {
-      // TODO(BACKEND-CONTRACT): REPLACE_ME — payload shape may differ
       backendClient.send(EVENTS.spawn_target, {});
     }
   }
@@ -221,7 +273,6 @@ export function useLiveStore() {
       backendClient.neutraliseMockTarget(id);
       if (id) setSelectedEntity(null);
     } else {
-      // TODO(BACKEND-CONTRACT): REPLACE_ME — payload shape may differ
       backendClient.send(EVENTS.neutralise_target, selectedEntity?.type === "target" ? { targetId: selectedEntity.id } : {});
     }
   }
@@ -265,6 +316,13 @@ export function useLiveStore() {
     backendClient.setMissionAutoRun?.(next);
   }
 
+  function setMissionAutoRunEnabled(enabled) {
+    if (missionAutoRun !== enabled) {
+      setMissionAutoRunState(enabled);
+      backendClient.setMissionAutoRun?.(enabled);
+    }
+  }
+
   function stepMissionOnce() {
     backendClient.stepMissionOnce?.();
   }
@@ -283,7 +341,6 @@ export function useLiveStore() {
     if (backendClient.getStatus() === "mock") {
       backendClient.scatterMockTargets();
     } else {
-      // TODO(BACKEND-CONTRACT): REPLACE_ME — payload shape may differ
       backendClient.send(EVENTS.scatter_targets, {});
     }
   }
@@ -298,11 +355,17 @@ export function useLiveStore() {
     });
   }
 
+  function toggleSimulateLOSDropouts() {
+    const next = !simulateLOSDropouts;
+    setSimulateLOSDropoutsState(next);
+    backendClient.setSimulateLOSDropouts?.(next);
+  }
+
   return {
     connectStatus,
     agents: agentsVM,
     targets: targetsVM,
-    assignments,
+    assignments: assignmentsVM,
     selectedEntity,
     mapOffset,
     observations,
@@ -313,10 +376,16 @@ export function useLiveStore() {
     resetNonce,
     startDemo,
     resetDemo,
-    toggle,
+    toggle: (key) => setDebug((d) => ({ ...d, [key]: !d[key] })),
     addPin,
-    isFrozen,
-    toggleFreeze,
+    isFrozen: paused,
+    toggleFreeze: togglePause,
+    setPaused: setPausedFn,
+    speedIndex,
+    speedOptions: SPEEDS,
+    setSpeedIndex,
+    nowMs,
+    lastTickMs,
     spawn,
     neutralise,
     scatter,
@@ -331,10 +400,15 @@ export function useLiveStore() {
     toggleMockTargetsMove,
     missionAutoRun,
     toggleMissionAutoRun,
+    setMissionAutoRunEnabled,
     stepMissionOnce,
     missionSpeed,
     setMissionSpeed,
     resetMission,
+    simulateLOSDropouts,
+    toggleSimulateLOSDropouts,
+    cameraViewShowAll,
+    setCameraViewShowAll,
     fadeStartMs: FADE_START_MS,
     fadeEndMs: FADE_END_MS,
     staleBadgeMs: STALE_BADGE_MS,

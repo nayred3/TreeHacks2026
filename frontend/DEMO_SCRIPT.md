@@ -1,38 +1,78 @@
-# Demo Script – Priority Assignment Engine
+# How to Demo – Priority Assignment Engine
 
-## Quick demo: labels clarity + staleness + inspector
-
-### 1. Start the app
+## Quick start
 ```bash
-cd frontend && npm run dev
+cd frontend
+npm run dev
 ```
-Open the app in browser (usually http://localhost:5173).
+Open http://localhost:5173/
 
-### 2. Labels clarity
-- **Start demo** – Click "Start demo" in Demo Controls.
-- **Legend** – Top-left legend shows: agents (Responders), targets (pins), P1 solid / P2 dashed, fade/staleness meaning.
-- **Badges** – Each dot has a short badge (A1, A2, A3 for agents; T1, T2, T3 for targets).
-- **Priority panel** – Right panel shows Responder Alpha/Bravo/Charlie and target names (Victim T1, Hazard T2, etc.).
+---
 
-### 3. Staleness demo
-- **Occlude random target** – In "Mock controls", click "Occlude random target (5s)". One target stops updating visibility; its "last seen" count increases and it fades. After ~8s it shows a STALE badge.
-- **Scatter** – Click "SCATTER" in the top bar. Targets teleport to random positions; some move outside agents' vision radius (180 units). Those targets start fading as their "last seen" grows.
-- **Move targets** – Turn ON "Move targets" in Mock controls. Targets drift randomly; they often leave vision range and become stale.
+## Demo flow (30–60 seconds)
 
-### 4. Inspector + interaction
-- **Click a dot** – Click an agent or target dot on the map.
-- **Inspector** – Selected entity details appear in the right panel: displayName, id, type, last seen, visibleNow, confidence, assigned agent.
-- **Actions** – For targets: "Focus" (center map on it), "Occlude (5s)" (mock-only, makes it stale).
-- **Escape** – Press Esc to clear selection.
-- **NEUTRALISE** – With a target selected, click "NEUTRALISE" to remove it. Without selection, removes the last target.
+### 1. Start the demo
+- Click **Start demo** in the right panel.
+- Responders (cyan/magenta/yellow) begin moving; targets (orange) appear on the map.
+- Say: *"This is our live view of responders and targets. We assign the nearest target to each responder."*
 
-### 5. Top bar controls
-- **PAUSE** – Stops simulation clock; last-seen timers freeze.
-- **ZONES** – Toggle zone overlay (dashed rectangles on map).
-- **SPAWN** – Add a new target at a random position.
-- **SCATTER** – Randomize all target positions.
+### 2. Enable the rescue loop
+- In **Rescue mission**, turn **Run mission (auto)** **ON**.
+- Responders move toward their assigned targets (bright cyan lines).
+- Say: *"Responders automatically move to their assigned targets. When they reach one, we mark it rescued and assign the next nearest."*
 
-### 6. Focus
-- Select a target or agent.
-- Click "Focus" in the inspector.
-- Map pans so the selected entity is centered.
+### 3. Show last-seen / LOS dropouts
+- Turn **Simulate LOS dropouts** **ON**.
+- Some targets are temporarily hidden (e.g. behind obstacles).
+- Their **Last seen** timer increases and the badge switches to **LOST**.
+- Say: *"Targets can leave line-of-sight. When that happens, last-seen time increases and we show a LOST badge until we see them again."*
+- Turn **Simulate LOS dropouts** **OFF** to show them reappear.
+
+### 4. Pause / unpause
+- Click **PAUSE** in the header.
+- Time and movement freeze.
+- Click **UNPAUSE** to resume.
+- Say: *"We can pause at any time to inspect the current state."*
+
+### 5. Manual occlusion
+- Click a target on the map (orange dot).
+- In the inspector, click **Occlude (5s)**.
+- That target is hidden for 5 seconds; last-seen increases and it shows LOST.
+- Say: *"We can manually occlude targets to test staleness handling."*
+
+### 6. Reset and demo script
+- Click **Reset state** to start over.
+- Or click **Demo Script (30s)** to run an automated sequence:
+  - Starts the demo
+  - Enables the rescue mission
+  - Turns LOS dropouts on for ~12 seconds
+  - Resets after 30 seconds
+
+---
+
+## Buttons cheat sheet
+
+| Button | Action |
+|--------|--------|
+| **PAUSE / UNPAUSE** | Freeze / resume simulation time |
+| **Start demo** | Start mock backend / movement |
+| **Reset state** | Stop and reset world state |
+| **Run mission (auto)** | Auto-assign and rescue loop |
+| **Simulate LOS dropouts** | Periodically hide targets to drive last-seen |
+| **Occlude random target (5s)** | Hide a random target for 5 seconds |
+| **Step once** | Single mission step (when mission running) |
+| **Reset mission** | Clear assignments and resume mission logic |
+| **Demo Script (30s)** | Automated 30-second demo run |
+| **SPAWN** | Add a new target |
+| **NEUTRALISE** | Remove selected or last target |
+| **SCATTER** | Randomize target positions (often out of LOS) |
+| **CENTER** | Reset map offset |
+
+---
+
+## What to narrate
+
+1. **Assignment**: *"Responders are assigned to the nearest unassigned target. Solid lines are primary (P1), dashed are secondary (P2)."*
+2. **Rescue loop**: *"On arrival, we mark the target rescued and reassign the responder to the next nearest target."*
+3. **Last-seen**: *"When a target leaves line-of-sight, last-seen increases and we show LOST. This drives uncertainty and reacquisition."*
+4. **Future backend**: *"This runs on fixtures and mocks. We have a WorldStateAdapter so we can swap to live WebSocket/API streams later."*

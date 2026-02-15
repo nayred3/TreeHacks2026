@@ -15,6 +15,9 @@ export default function DemoControlPanel({ store, backendStatus = "offline" }) {
       missionSpeed,
       setMissionSpeed,
       resetMission,
+      simulateLOSDropouts,
+      toggleSimulateLOSDropouts,
+      setMissionAutoRunEnabled,
     } = store;
     const isMock = backendStatus === "mock";
   
@@ -76,6 +79,11 @@ export default function DemoControlPanel({ store, backendStatus = "offline" }) {
               Occlude random target (5s)
             </button>
             <ToggleRow
+              label="Simulate LOS dropouts"
+              checked={simulateLOSDropouts ?? false}
+              onClick={toggleSimulateLOSDropouts}
+            />
+            <ToggleRow
               label="Move targets"
               checked={mockTargetsMove ?? false}
               onClick={toggleMockTargetsMove}
@@ -105,10 +113,31 @@ export default function DemoControlPanel({ store, backendStatus = "offline" }) {
             <button style={secondaryBtn} onClick={resetMission}>
               Reset mission
             </button>
+            <button style={primaryBtn} onClick={runDemoScript} disabled={isRunning}>
+              Demo Script (30s)
+            </button>
           </div>
         )}
       </div>
     );
+  }
+
+  function runDemoScript() {
+    if (isRunning) return;
+    resetDemo();
+    setTimeout(() => {
+      startDemo();
+      setMissionAutoRunEnabled?.(true);
+    }, 100);
+    setTimeout(() => {
+      toggleSimulateLOSDropouts?.();
+    }, 6000);
+    setTimeout(() => {
+      toggleSimulateLOSDropouts?.();
+    }, 18000);
+    setTimeout(() => {
+      resetDemo();
+    }, 30000);
   }
   
   function ToggleRow({ label, checked, onClick }) {

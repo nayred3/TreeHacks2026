@@ -11,9 +11,15 @@ const TARGET_COLOR = "#ff6600";
 const AGENT_COLORS = [NEON_CYAN, NEON_MAGENTA, NEON_YELLOW, NEON_PURPLE];
 
 function alphaFromAge(ageMs, fadeStartMs, fadeEndMs) {
-  if (ageMs <= fadeStartMs) return 1;
-  if (ageMs >= fadeEndMs) return 0.2;
-  return 1 - (0.8 * (ageMs - fadeStartMs)) / (fadeEndMs - fadeStartMs);
+  const a = Number(ageMs);
+  if (!Number.isFinite(a) || a <= 0) return 1;
+  if (a <= fadeStartMs) return 1;
+  if (a >= fadeEndMs) return 0.2;
+  return 1 - (0.8 * (a - fadeStartMs)) / (fadeEndMs - fadeStartMs);
+}
+
+function safeCoord(v, fallback = 0) {
+  return Number.isFinite(v) ? v : fallback;
 }
 
 export default function MapCanvasHUD({
@@ -85,79 +91,87 @@ export default function MapCanvasHUD({
 
       // Trails (before dots)
       if (showTrails) {
-        targets.forEach((t) => {
-          const trail = t.trail ?? [];
+        (targets ?? []).forEach((t) => {
+          const trail = t?.trail ?? [];
           if (trail.length < 2) return;
           const alpha = alphaFromAge(t.ageMs ?? 0, fadeStartMs, fadeEndMs);
           ctx.strokeStyle = `rgba(255, 102, 0, ${alpha * 0.5})`;
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.moveTo(sx(trail[0].x), sy(trail[0].y));
-          for (let i = 1; i < trail.length; i++) {
-            ctx.lineTo(sx(trail[i].x), sy(trail[i].y));
+          const p0 = trail[0];
+          if (p0 && Number.isFinite(p0.x) && Number.isFinite(p0.y)) {
+            ctx.moveTo(sx(p0.x), sy(p0.y));
+            for (let i = 1; i < trail.length; i++) {
+              const p = trail[i];
+              if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) ctx.lineTo(sx(p.x), sy(p.y));
+            }
           }
           ctx.stroke();
         });
-        agents.forEach((a, i) => {
-          const trail = a.trail ?? [];
+        (agents ?? []).forEach((a, i) => {
+          const trail = a?.trail ?? [];
           if (trail.length < 2) return;
           const hex = AGENT_COLORS[i % AGENT_COLORS.length];
-          const r = parseInt(hex.slice(1, 3), 16);
-          const g = parseInt(hex.slice(3, 5), 16);
-          const b = parseInt(hex.slice(5, 7), 16);
+          const [r, g, b] = [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
           const alpha = alphaFromAge(a.ageMs ?? 0, fadeStartMs, fadeEndMs);
           ctx.strokeStyle = `rgba(${r},${g},${b},${alpha * 0.6})`;
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.moveTo(sx(trail[0].x), sy(trail[0].y));
-          for (let j = 1; j < trail.length; j++) {
-            ctx.lineTo(sx(trail[j].x), sy(trail[j].y));
+          const p0 = trail[0];
+          if (p0 && Number.isFinite(p0.x) && Number.isFinite(p0.y)) {
+            ctx.moveTo(sx(p0.x), sy(p0.y));
+            for (let j = 1; j < trail.length; j++) {
+              const p = trail[j];
+              if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) ctx.lineTo(sx(p.x), sy(p.y));
+            }
           }
           ctx.stroke();
         });
       }
 
       // Enroute lines (agent -> assigned target, thicker, brighter)
-      const agentMap = new Map(agents.map((a) => [a.id, a]));
-      const targetMap = new Map(targets.map((t) => [t.id, t]));
-      agents.forEach((a) => {
-        if (a.mode === "enroute" && a.currentTargetId) {
-          const target = targetMap.get(a.currentTargetId);
-          if (target && target.status !== "rescued") {
-            const d = Math.hypot(target.x - a.x, target.y - a.y);
-            const eta = missionSpeed > 0 ? (d / missionSpeed).toFixed(1) : "—";
-            ctx.strokeStyle = "#00ffff";
-            ctx.lineWidth = 4;
-            ctx.globalAlpha = 0.95;
-            ctx.setLineDash([]);
-            ctx.beginPath();
-            ctx.moveTo(sx(a.x), sy(a.y));
-            ctx.lineTo(sx(target.x), sy(target.y));
-            ctx.stroke();
-            const mx = (a.x + target.x) / 2;
-            const my = (a.y + target.y) / 2;
-            ctx.fillStyle = "rgba(0,0,0,0.8)";
-            ctx.font = "10px monospace";
-            ctx.fillText(`ETA ${eta}s`, sx(mx) + 4, sy(my));
-            ctx.globalAlpha = 1;
-          }
-        }
+      const agentMap = new Map((agents ?? []).filter((a) => a?.id).map((a) => [a.id, a]));
+      const targetMap = new Map((targets ?? []).filter((t) => t?.id).map((t) => [t.id, t]));
+      (agents ?? []).forEach((a) => {
+        if (!a || a.mode !== "enroute" || !a.currentTargetId) return;
+        const target = targetMap.get(a.currentTargetId);
+        if (!target || target.status === "rescued") return;
+        const ax = safeCoord(a.x), ay = safeCoord(a.y), tx = safeCoord(target.x), ty = safeCoord(target.y);
+        const d = Math.hypot(tx - ax, ty - ay);
+        const eta = missionSpeed > 0 && Number.isFinite(d) ? (d / missionSpeed).toFixed(1) : "—";
+        ctx.strokeStyle = "#00ffff";
+        ctx.lineWidth = 4;
+        ctx.globalAlpha = 0.95;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(sx(ax), sy(ay));
+        ctx.lineTo(sx(tx), sy(ty));
+        ctx.stroke();
+        const mx = (ax + tx) / 2;
+        const my = (ay + ty) / 2;
+        ctx.fillStyle = "rgba(0,0,0,0.8)";
+        ctx.font = "10px monospace";
+        ctx.fillText(`ETA ${eta}s`, sx(mx) + 4, sy(my));
+        ctx.globalAlpha = 1;
       });
 
-      // Assignment lines (before dots so they render under)
-      if (showAssignments && assignments.length > 0) {
+      // Assignment lines (before dots so they render under); skip rescued targets
+      if (showAssignments && (assignments ?? []).length > 0) {
         assignments.forEach((a) => {
           const agent = agentMap.get(a.agentId);
           const target = targetMap.get(a.targetId);
-          if (!agent || !target) return;
+          if (!agent || !target || target.status === "rescued") return;
           const isPrimary = a.priority === 1;
           ctx.strokeStyle = isPrimary ? NEON_CYAN : NEON_MAGENTA;
           ctx.setLineDash(isPrimary ? [] : [8, 6]);
           ctx.lineWidth = isPrimary ? 2 : 1;
           ctx.globalAlpha = isPrimary ? 0.9 : 0.5;
+          const agx = safeCoord(agent.x), agy = safeCoord(agent.y);
+          const tgx = safeCoord(target.x), tgy = safeCoord(target.y);
+          if (!Number.isFinite(agx + agy + tgx + tgy)) return;
           ctx.beginPath();
-          ctx.moveTo(sx(agent.x), sy(agent.y));
-          ctx.lineTo(sx(target.x), sy(target.y));
+          ctx.moveTo(sx(agx), sy(agy));
+          ctx.lineTo(sx(tgx), sy(tgy));
           ctx.stroke();
           ctx.setLineDash([]);
           ctx.globalAlpha = 1;
@@ -165,14 +179,16 @@ export default function MapCanvasHUD({
       }
 
       // Targets/pins
-      targets.forEach((t) => {
-        const x = sx(t.x);
-        const y = sy(t.y);
+      (targets ?? []).forEach((t) => {
+        if (!t) return;
+        const tx = safeCoord(t.x), ty = safeCoord(t.y);
+        const x = sx(tx);
+        const y = sy(ty);
         const isRescued = t.status === "rescued";
-        const ageMs = t.ageMs ?? (t.secondsSinceSeen ?? 0) * 1000;
+        const ageMs = Number.isFinite(t.ageMs) ? t.ageMs : (Number(t.secondsSinceSeen) || 0) * 1000;
         const alpha = isRescued ? 0.35 : alphaFromAge(ageMs, fadeStartMs, fadeEndMs);
         const isSelected = selectedEntity?.type === "target" && selectedEntity?.id === t.id;
-        const secondsSinceSeen = t.secondsSinceSeen ?? t.ageMs / 1000 ?? 0;
+        const secondsSinceSeen = Number.isFinite(t.secondsSinceSeen) ? t.secondsSinceSeen : (Number(t.ageMs) || 0) / 1000;
         const showStale = secondsSinceSeen * 1000 > staleBadgeMs;
         ctx.globalAlpha = alpha;
         ctx.shadowColor = TARGET_COLOR;
@@ -225,9 +241,11 @@ export default function MapCanvasHUD({
       });
 
       // Agents
-      agents.forEach((a, i) => {
-        const x = sx(a.x);
-        const y = sy(a.y);
+      (agents ?? []).forEach((a, i) => {
+        if (!a) return;
+        const ax = safeCoord(a.x), ay = safeCoord(a.y);
+        const x = sx(ax);
+        const y = sy(ay);
         const alpha = alphaFromAge(a.ageMs ?? 0, fadeStartMs, fadeEndMs);
         const isSelected = selectedEntity?.type === "agent" && selectedEntity?.id === a.id;
         ctx.globalAlpha = alpha;
@@ -255,7 +273,8 @@ export default function MapCanvasHUD({
         if (showLastSeenTimers) {
           ctx.fillStyle = "rgba(255,255,255,0.7)";
           ctx.font = "10px monospace";
-          ctx.fillText(`${(a.lastSeenSeconds ?? a.ageMs / 1000 ?? 0).toFixed(1)}s`, x + 10, y + 18);
+          const lastSec = Number(a.lastSeenSeconds) ?? (Number(a.ageMs) || 0) / 1000;
+        ctx.fillText(`${(Number.isFinite(lastSec) ? lastSec : 0).toFixed(1)}s`, x + 10, y + 18);
         }
       });
 
@@ -331,18 +350,18 @@ export default function MapCanvasHUD({
       const rect = canvas.getBoundingClientRect();
       const scaleX = rect.width / LOGICAL_W;
       const scaleY = rect.height / LOGICAL_H;
-      const ox = mapOffset.x ?? 0;
-      const oy = mapOffset.y ?? 0;
+      const ox = mapOffset?.x ?? 0;
+      const oy = mapOffset?.y ?? 0;
       const px = (e.clientX - rect.left) / scaleX - ox;
       const py = (e.clientY - rect.top) / scaleY - oy;
       const hitRadius = 20;
       let hit = null;
-      agents.forEach((a) => {
-        if (Math.hypot(px - a.x, py - a.y) <= hitRadius) hit = { type: "agent", id: a.id };
+      (agents ?? []).forEach((a) => {
+        if (a && Number.isFinite(a.x) && Number.isFinite(a.y) && Math.hypot(px - a.x, py - a.y) <= hitRadius) hit = { type: "agent", id: a.id };
       });
       if (!hit) {
-        targets.forEach((t) => {
-          if (Math.hypot(px - t.x, py - t.y) <= hitRadius) hit = { type: "target", id: t.id };
+        (targets ?? []).forEach((t) => {
+          if (t && Number.isFinite(t.x) && Number.isFinite(t.y) && Math.hypot(px - t.x, py - t.y) <= hitRadius) hit = { type: "target", id: t.id };
         });
       }
       if (hit && onSelectEntity) {

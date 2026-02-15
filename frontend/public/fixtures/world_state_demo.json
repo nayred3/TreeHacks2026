@@ -1,0 +1,16 @@
+{
+  "responders": [
+    { "id": "a1", "x": 120, "y": 200, "label": "R1 Alice", "yaw": 0, "fovDeg": 60 },
+    { "id": "a2", "x": 400, "y": 260, "label": "R2 Bob", "yaw": 1.2, "fovDeg": 60 },
+    { "id": "a3", "x": 680, "y": 180, "label": "R3 Charlie", "yaw": 2.5, "fovDeg": 60 }
+  ],
+  "targets": [
+    { "id": "t1", "x": 300, "y": 150, "type": "victim", "label": "T1 Victim", "status": "unassigned" },
+    { "id": "t2", "x": 500, "y": 380, "type": "hazard", "label": "T2 Hazard", "status": "unassigned" },
+    { "id": "t3", "x": 200, "y": 400, "type": "victim", "label": "T3 Victim", "status": "unassigned" },
+    { "id": "t4", "x": 550, "y": 120, "type": "victim", "label": "T4 Victim", "status": "unassigned" },
+    { "id": "t5", "x": 100, "y": 300, "type": "victim", "label": "T5 Victim", "status": "unassigned" }
+  ],
+  "assignments": [],
+  "timestamp": 0
+}
