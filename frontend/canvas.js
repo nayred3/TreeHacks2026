@@ -358,8 +358,8 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
   }
 
   // Agents: 60° facing-direction wedge then dot + label
-  const FOV_WEDGE_RADIUS = 48;  // px
-  const FOV_WEDGE_SPAN = Math.PI / 3;  // 60° cone showing facing direction
+  const FOV_WEDGE_RADIUS = 64;  // px — visible cone showing facing direction
+  const FOV_WEDGE_SPAN = Math.PI / 3;  // 60° cone
 
   for (const a of agents) {
     const ap = toPx(a.position);
@@ -380,7 +380,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const startAngle = angleRad - FOV_WEDGE_SPAN / 2;
     const endAngle = angleRad + FOV_WEDGE_SPAN / 2;
 
-    // Draw quarter-circle wedge (camera FOV) behind the agent
+    // Draw 60° wedge (facing direction) behind the agent
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(ap.x, ap.y);
@@ -389,16 +389,15 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     if (color.startsWith("#")) {
       const hex = color.slice(1);
       const R = parseInt(hex.slice(0, 2), 16), G = parseInt(hex.slice(2, 4), 16), B = parseInt(hex.slice(4, 6), 16);
-      ctx.fillStyle = `rgba(${R},${G},${B},0.22)`;
+      ctx.fillStyle = `rgba(${R},${G},${B},0.45)`;
     } else {
-      ctx.fillStyle = "rgba(136,136,136,0.2)";
+      ctx.fillStyle = "rgba(136,136,136,0.4)";
     }
     ctx.fill();
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.2;
-    ctx.globalAlpha = 0.9;
-    ctx.stroke();
+    ctx.lineWidth = 2;
     ctx.globalAlpha = 1;
+    ctx.stroke();
     ctx.restore();
 
     // Agent dot + label
