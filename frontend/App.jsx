@@ -328,7 +328,7 @@ export default function App() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily:"'JetBrains Mono','Courier New',monospace", background:C.bg, minHeight:"100vh", color:C.text, padding:14, boxSizing:"border-box" }}>
+    <div style={{ fontFamily:"'JetBrains Mono','Courier New',monospace", background:C.bg, minHeight:"100vh", display:"flex", flexDirection:"column", color:C.text, padding:14, boxSizing:"border-box" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
         * { box-sizing:border-box; }
@@ -340,7 +340,7 @@ export default function App() {
       `}</style>
 
       {/* ── Header ── */}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
+      <div style={{ flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
         <div>
           <div style={{ fontSize:15, fontWeight:700, letterSpacing:"0.15em", color:C.teal }}>◈ PRIORITY ASSIGNMENT ENGINE</div>
           <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em", marginTop:2 }}>DISTANCE-BASED PRIORITY</div>
@@ -412,7 +412,7 @@ export default function App() {
       </div>
 
       {/* ── Line Legend ── */}
-      <div style={{ display:"flex", gap:14, marginBottom:10, padding:"7px 12px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, flexWrap:"wrap", alignItems:"center" }}>
+      <div style={{ flexShrink:0, display:"flex", gap:14, marginBottom:10, padding:"7px 12px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ fontSize:9, color:C.dim, letterSpacing:"0.08em" }}>LINE KEY:</span>
           {[
             { stroke:"#aaa", dash:"", w:2.5,  label:"P1 Primary Target" },
@@ -437,8 +437,8 @@ export default function App() {
       </div>
 
       {/* ── Main layout: left cameras | center (map + recap) | right cameras ── */}
-      <div style={{ maxWidth:"100%", overflowX:"auto" }}>
-      <div style={{ display:"flex", gap:0, justifyContent:"center", alignItems:"stretch", minWidth:"min-content" }}>
+      <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", maxWidth:"100%", overflow:"auto" }}>
+      <div style={{ flex:1, minHeight:0, display:"flex", gap:0, justifyContent:"center", alignItems:"stretch", minWidth:"min-content" }}>
 
         {/* Left column: Agent 1 & 2 camera views */}
         <div style={{ display:"flex", flexDirection:"column", gap:8, width:300, minWidth:200, flexShrink:1 }}>
@@ -793,7 +793,7 @@ export default function App() {
       </div>
 
       {/* Config footer */}
-      <div style={{ marginTop:10, padding:"8px 14px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, display:"flex", gap:18, flexWrap:"wrap", alignItems:"center" }}>
+      <div style={{ flexShrink:0, marginTop:10, padding:"8px 14px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, display:"flex", gap:18, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em" }}>ENGINE CONFIG — mirrors assignment_engine.py</span>
         {[
           { label:"Algorithm",     value:"priority_v2_antithrash",     col:C.green },
