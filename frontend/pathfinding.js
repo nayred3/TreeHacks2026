@@ -85,7 +85,7 @@ export function createPresetWallLayout(ww, wh, layoutType = "corridor") {
 
     // ── Top-left L-shape: three walls carving out rectangular inset ──                                            // Horizontal: 6.3 ft
     addVWall(6.3 * sx, 0, sy * 9.0833);                                    // Vertical: 9.0833 ft
-    addHWall(9.0833 * sy, 6.3 * sx, (47-6.3)*sx);      
+    addHWall(9.0833 * sy, 6.3 * sx, 40.87*sy);      
     addVWall(40.87*sy, 0, sy * 9.0833);                                // Bottom horizontal (closes box)
 
     // ── Right side: two vertical walls, stacked one above the other with gap ──
@@ -101,13 +101,6 @@ export function createPresetWallLayout(ww, wh, layoutType = "corridor") {
     const dimensions = [
       { x1: pad, y1: pad, x2: ww - pad, y2: pad, label: "47.17 ft" },
       { x1: pad, y1: pad, x2: pad, y2: wh - pad, label: "37.5 ft" },
-      { x1: pad, y1: pad, x2: 6.3 * sx + pad, y2: pad, label: "6.3 ft" },
-      { x1: 6.3 * sx + pad, y1: pad, x2: 6.3 * sx + pad, y2: 9.0833 * sy + pad, label: "9.0833 ft" },
-      { x1: ww - pad, y1: pad, x2: ww - pad, y2: 11.8333 * sy + pad, label: "11.8333 ft" },
-      { x1: ww - 6.3 * sx - pad, y1: pad, x2: ww - pad, y2: pad, label: "6.3 ft" },
-      { x1: ww - pad, y1: yLowerTop + pad, x2: ww - pad, y2: yLowerBot - pad, label: "3.75 ft" },
-      { x1: ww - pad, y1: yLowerBot + pad, x2: ww - pad, y2: wh - pad, label: "5.0833 ft" },
-      { x1: xLower + pad, y1: yLowerBot + pad, x2: ww - pad, y2: yLowerBot + pad, label: "12.5 ft" },
     ];
 
     return { walls, doors, dimensions };
