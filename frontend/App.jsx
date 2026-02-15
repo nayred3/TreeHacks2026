@@ -185,7 +185,7 @@ export default function App() {
     const LD1_BOB_START = feetToFrontendPos(6, 5);
     const LD1_BOB_GOAL = feetToFrontendPos(6, 15);
     const LD1_TARGET_POS = feetToFrontendPos(38, 20);
-    const LD1_ALICE_SPEED = 65;  // cm per sec (Alice a bit faster)
+    const LD1_ALICE_SPEED = 75;  // cm per sec (Alice a bit faster)
     const LD1_BOB_SPEED = 45;
     const LD1_ACCEL = 60;        // cm/s² for Live Demo A & 2
     const LD1_MAX_SPEED = 70;
