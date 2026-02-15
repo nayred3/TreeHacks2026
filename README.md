@@ -15,6 +15,20 @@
 3. **Open in browser:**
    Visit the URL shown in the terminal (typically `http://localhost:5173/`).
 
+## Live Demo
+
+When **LIVE DEMO** is pressed, the frontend polls fusion camera data and plots agents (cameras) and targets (fused tracks) on the map.
+
+1. **Start the fusion cam_view server** (provides `/api/map`):
+   ```bash
+   python -m fusion.cam_view.app
+   ```
+   Runs on port 5051 by default.
+
+2. **Start the frontend** (`npm run dev`) and click **LIVE DEMO**.
+
+The frontend proxies `/api/fusion/map` → `http://127.0.0.1:5051/api/map`. Cameras become agents; fused_tracks become targets. Coordinates are converted from the fusion room (0–12 m × 0–10 m) to the frontend canvas.
+
 ## Running the Backend (optional)
 
 ```bash

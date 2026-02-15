@@ -38,6 +38,10 @@ export const AGENT_COLORS = {
   Bob: "#fbbf24",
   Charlie: "#a78bfa",
   Diana: "#f472b6",
+  cam_1: "#38bdf8",
+  cam_2: "#fbbf24",
+  cam_3: "#a78bfa",
+  cam_mobile: "#f472b6",
 };
 
 export const TARGET_COLOR = "#f87171";

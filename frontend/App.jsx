@@ -4,6 +4,7 @@ import { euclidean, randomWalk } from "./utils.js";
 import { runPriorityAssignment } from "./assignment.js";
 import { drawScene } from "./canvas.js";
 import { extractWallGrid, createPresetWallLayout, wallLayoutToGrid, gridToWallLayout, WALL_LAYOUT_OPTIONS, GRID_SIZE } from "./pathfinding.js";
+import { fetchFusionData } from "./liveDemo.js";
 
 export default function App() {
   const canvasRef = useRef(null);
@@ -33,11 +34,39 @@ export default function App() {
   const [wallsDropdownOpen, setWallsDropdownOpen] = useState(false);
   const wallsDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
+  const liveAgentsRef = useRef([]);
+  const liveTargetsRef = useRef([]);
 
   useEffect(() => {
     const close = (e) => { if (wallsDropdownRef.current && !wallsDropdownRef.current.contains(e.target)) setWallsDropdownOpen(false); };
     if (wallsDropdownOpen) { document.addEventListener("click", close); return () => document.removeEventListener("click", close); }
   }, [wallsDropdownOpen]);
+
+  // Live Demo: poll fusion /api/map, map cameras -> agents, fused_tracks -> targets
+  useEffect(() => {
+    if (!isLiveDemo) {
+      liveAgentsRef.current = [];
+      liveTargetsRef.current = [];
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const { agents, targets } = await fetchFusionData();
+        if (cancelled) return;
+        liveAgentsRef.current = agents;
+        liveTargetsRef.current = targets;
+        setTick(t => t + 1);
+      } catch (_) {
+        // Fusion server not running; leave refs empty
+      }
+    };
+    poll();
+    const iv = setInterval(poll, 200);
+    addEvent("Live Demo — polling fusion cam_view data…", "system");
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [isLiveDemo, addEvent]);
 
   const addEvent = useCallback((msg, type = "info") =>
     setEvents(prev => [{ msg, type, ts: Date.now() }, ...prev.slice(0, 59)]), []);
@@ -116,14 +145,22 @@ export default function App() {
 
     function loop(now) {
       animRef.current = requestAnimationFrame(loop);
-      if (paused || now - lastT < 50) return;
-      lastT = now; tickN++;
       const s = stateRef.current;
-      s.agents = s.agents.map(a => { const r = constrainedWalk(a.position, a.vel, CM_PER_TICK); return { ...a, position: r.pos, vel: r.vel }; });
-      if (!frozen) {
-        s.targets = s.targets.map(t => { const r = constrainedWalk(t.position, t.vel, CM_PER_TICK); return { ...t, position: r.pos, vel: r.vel, lastSeen: Date.now() }; });
+      let agents, targets;
+      if (isLiveDemo) {
+        agents = [...liveAgentsRef.current];
+        targets = [...liveTargetsRef.current];
+      } else {
+        if (paused || now - lastT < 50) return;
+        lastT = now; tickN++;
+        s.agents = s.agents.map(a => { const r = constrainedWalk(a.position, a.vel, CM_PER_TICK); return { ...a, position: r.pos, vel: r.vel }; });
+        if (!frozen) {
+          s.targets = s.targets.map(t => { const r = constrainedWalk(t.position, t.vel, CM_PER_TICK); return { ...t, position: r.pos, vel: r.vel, lastSeen: Date.now() }; });
+        }
+        agents = s.agents;
+        targets = s.targets;
       }
-      const res = runPriorityAssignment(s.agents, s.targets, s.prevPrimary, s.prevSecondary, wallGrid);
+      const res = runPriorityAssignment(agents, targets, s.prevPrimary, s.prevSecondary, wallGrid);
       for (const [tid, aid] of Object.entries(res.primary)) {
         if (s.prevPrimary[tid] && s.prevPrimary[tid] !== aid) {
           addEvent(`↩ P1 T${tid}: ${s.prevPrimary[tid]} → ${aid}`, "reassign");
@@ -132,13 +169,13 @@ export default function App() {
       }
       s.prevPrimary = { ...res.primary }; s.prevSecondary = { ...res.secondary };
       const canvas = canvasRef.current;
-      if (canvas) drawScene(canvas, s.agents, s.targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths);
+      if (canvas) drawScene(canvas, agents, targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths);
       setTick(tickN); setResult(res);
-      setUi({ agents: [...s.agents], targets: [...s.targets] });
+      setUi({ agents: [...agents], targets: [...targets] });
     }
     animRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animRef.current);
-  }, [paused, frozen, hl, showZones, addEvent, wallGrid, wallLayout]);
+  }, [paused, frozen, hl, showZones, addEvent, wallGrid, wallLayout, isLiveDemo]);
 
   const onCanvasClick = e => {
     if (!stateRef.current || !canvasRef.current) return;
@@ -249,10 +286,14 @@ export default function App() {
   );
 
   const C = {
-    bg:"#0c1222", panel:"#141c2e", border:"#2a3a5c",
+    bg:"#080a12", panel:"#0f1420", border:"#2a2d45",
     text:"#e8ecf4", dim:"#94a3b8", bright:"#f1f5f9",
     cyan:"#38bdf8", gold:"#fbbf24", teal:"#2dd4bf",
-    green:"#34d399", red:"#f87171", orange:"#fb923c", yellow:"#fbbf24", purple:"#a78bfa",
+    green:"#34d399", red:"#f87171", orange:"#fb923c", yellow:"#fbbf24", purple:"#a78bfa", magenta:"#f472b6",
+    gradientBg:"linear-gradient(135deg, #0a0d18 0%, #12162a 40%, #0d1018 100%)",
+    gradientPanel:"linear-gradient(165deg, rgba(26,30,55,0.95) 0%, rgba(15,18,35,0.98) 50%, rgba(10,12,25,0.99) 100%)",
+    gradientOmbre:"linear-gradient(180deg, rgba(184,90,40,0.25) 0%, rgba(251,191,36,0.12) 50%, rgba(56,189,248,0.08) 100%)",
+    gradientPurple:"linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(139,92,246,0.12) 100%)",
   };
 
   const TabBtn = ({ id, label }) => (
@@ -268,13 +309,14 @@ export default function App() {
         }
       }}
       style={{
-      background: tab === id ? C.panel : "transparent",
+      background: tab === id ? C.gradientPurple : "transparent",
       border: `1px solid ${tab === id ? C.border : "transparent"}`,
-      borderBottom: tab === id ? `1px solid ${C.panel}` : `1px solid ${C.border}`,
+      borderBottom: tab === id ? `1px solid transparent` : `1px solid ${C.border}`,
       color: tab === id ? C.bright : C.dim, padding: "5px 12px", cursor: "pointer",
       fontSize: 11, fontFamily: "inherit", letterSpacing: "0.04em",
       borderRadius: "4px 4px 0 0", marginBottom: -1, transition: "all 0.15s",
       position: "relative", zIndex: 8, pointerEvents: "auto",
+      boxShadow: tab === id ? "0 -2px 8px rgba(99,102,241,0.15)" : "none",
     }}
     >{label}</button>
   );
@@ -331,22 +373,23 @@ export default function App() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily:"'Inter','Segoe UI',system-ui,-apple-system,sans-serif", background:C.bg, minHeight:"100vh", display:"flex", flexDirection:"column", color:C.text, padding:14, boxSizing:"border-box" }}>
+    <div style={{ fontFamily:"'Inter','Segoe UI',system-ui,-apple-system,sans-serif", background:C.gradientBg, minHeight:"100vh", display:"flex", flexDirection:"column", color:C.text, padding:14, boxSizing:"border-box" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         * { box-sizing:border-box; }
         ::-webkit-scrollbar { width:6px; height:6px; }
-        ::-webkit-scrollbar-track { background:#141c2e; }
-        ::-webkit-scrollbar-thumb { background:#3b4a6b; border-radius:4px; }
+        ::-webkit-scrollbar-track { background: linear-gradient(180deg, #0d1018, #12162a); }
+        ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #4b4b6b 0%, #6366f1 50%, #3b3d5c 100%); border-radius:4px; }
+        ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #6366f1 0%, #818cf8 100%); }
         @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
         @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.45} }
-        button:hover { filter:brightness(1.1); }
+        button:hover { filter:brightness(1.12); }
       `}</style>
 
       {/* ── Header ── */}
       <div style={{ flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
         <div>
-          <div style={{ fontSize:16, fontWeight:600, letterSpacing:"0.05em", color:C.cyan }}>PRIORITY ASSIGNMENT ENGINE</div>
+          <div style={{ fontSize:16, fontWeight:600, letterSpacing:"0.05em", background:"linear-gradient(90deg, #38bdf8 0%, #818cf8 50%, #a78bfa 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>PRIORITY ASSIGNMENT ENGINE</div>
           <div style={{ fontSize:12, color:C.dim, letterSpacing:"0.04em", marginTop:2 }}>DISTANCE-BASED PRIORITY</div>
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
@@ -358,10 +401,10 @@ export default function App() {
                 { label: "◎ ZONES", onClick: () => setZones(z=>!z), active: showZones, ac: C.cyan },
               ].map(b => (
                 <button key={b.label} onClick={b.onClick} style={{
-                  background: b.active ? "rgba(56,189,248,0.15)" : C.panel,
+                  background: b.active ? "linear-gradient(135deg, rgba(56,189,248,0.22) 0%, rgba(99,102,241,0.12) 100%)" : C.panel,
                   border: `1px solid ${b.active ? b.ac : C.border}`,
                   color: b.active ? b.ac : C.dim,
-                  padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
+                  padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit", boxShadow: b.active ? "0 0 8px rgba(56,189,248,0.2)" : "none",
                 }}>{b.label}</button>
               ))}
               <button onClick={spawn} style={{ background:"#2d0a0a", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>⊕ SPAWN</button>
@@ -369,10 +412,10 @@ export default function App() {
               <button onClick={scatter} style={{ background:"#2d2608", border:`1px solid ${C.gold}60`, color:C.gold, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>⚡ SCATTER</button>
             </>
           )}
-          <button onClick={() => addPresetWalls("dual-vertical")} style={{
-            background:C.panel, border:`1px solid ${C.cyan}`, color:C.cyan,
-            padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
-          }}>LIVE DEMO</button>
+          <button onClick={() => { setIsLiveDemo(prev => !prev); if (!isLiveDemo) addPresetWalls("dual-vertical"); }} style={{
+            background: isLiveDemo ? "linear-gradient(135deg, rgba(56,189,248,0.3) 0%, rgba(99,102,241,0.2) 100%)" : C.panel, border:`1px solid ${isLiveDemo ? "#38bdf8" : C.border}`, color:C.cyan,
+            padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit", boxShadow: isLiveDemo ? "0 0 12px rgba(56,189,248,0.25)" : "none",
+          }}>{isLiveDemo ? "LIVE DEMO ON" : "LIVE DEMO"}</button>
           <div ref={wallsDropdownRef} style={{ position:"relative" }}>
             <button onClick={() => setWallsDropdownOpen(o => !o)} style={{
               background: wallsDropdownOpen ? "rgba(251,191,36,0.12)" : C.panel, border:`1px solid ${C.gold}`, color:C.gold,
@@ -383,8 +426,8 @@ export default function App() {
             </button>
             {wallsDropdownOpen && (
               <div style={{
-                position:"absolute", top:"100%", left:0, marginTop:4, background:C.panel, border:`1px solid ${C.border}`,
-                borderRadius:6, boxShadow:"0 4px 12px rgba(0,0,0,0.4)", minWidth:160, zIndex:20,
+                position:"absolute", top:"100%", left:0, marginTop:4, background:C.gradientPanel, border:`1px solid ${C.border}`,
+                borderRadius:6, boxShadow:"0 4px 16px rgba(0,0,0,0.4)", minWidth:160, zIndex:20,
               }}>
                 {WALL_LAYOUT_OPTIONS.map(({ id, label }) => (
                   <button key={id} onClick={() => addPresetWalls(id)} style={{
@@ -399,16 +442,16 @@ export default function App() {
           </div>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleSchematicUpload} style={{ display:"none" }}/>
           <button onClick={() => fileInputRef.current?.click()} style={{
-            background:"linear-gradient(135deg, rgba(56,189,248,0.15), rgba(45,212,191,0.12))",
-            border:`1px solid ${C.cyan}`,
+            background:"linear-gradient(135deg, rgba(56,189,248,0.2) 0%, rgba(99,102,241,0.15) 50%, rgba(45,212,191,0.12) 100%)",
+            border:"1px solid rgba(99,102,241,0.5)",
             color:C.cyan,
             padding:"8px 16px",
-                  borderRadius:8,
+            borderRadius:8,
             cursor:"pointer",
             fontSize:11,
             fontWeight:600,
             letterSpacing:"0.05em",
-            boxShadow:`0 0 12px ${C.cyan}40`,
+            boxShadow:"0 0 16px rgba(99,102,241,0.2)",
             fontFamily:"inherit",
           }}> LOAD SCHEMATIC</button>
           {(wallLayout || wallGrid) && <button onClick={clearSchematic} style={{ background:"#2d0a0a", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
@@ -416,7 +459,7 @@ export default function App() {
       </div>
 
       {/* ── Line Legend ── */}
-      <div style={{ flexShrink:0, display:"flex", gap:14, marginBottom:10, padding:"10px 14px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:8, flexWrap:"wrap", alignItems:"center" }}>
+      <div style={{ flexShrink:0, display:"flex", gap:14, marginBottom:10, padding:"10px 14px", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:8, flexWrap:"wrap", alignItems:"center", boxShadow:"0 2px 8px rgba(0,0,0,0.3)" }}>
         <span style={{ fontSize:11, color:C.dim, letterSpacing:"0.05em" }}>LINE KEY:</span>
           {[
             { stroke:C.text, dash:"", w:2.5,  label:"P1 Primary Target" },
@@ -450,8 +493,8 @@ export default function App() {
           {/* Live map */}
           <div>
             <canvas ref={canvasRef} onClick={onCanvasClick}
-              style={{ display:"block", width:WW, height:WH, border:`1px solid ${C.border}`, borderRadius:6, cursor:"crosshair" }}/>
-            <div style={{ display:"flex", gap:10, marginTop:8, padding:"10px 12px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:8, flexWrap:"wrap" }}>
+              style={{ display:"block", width:WW, height:WH, border:`1px solid ${C.border}`, borderRadius:6, cursor:"crosshair", boxShadow:"0 0 24px rgba(99,102,241,0.1)" }}/>
+            <div style={{ display:"flex", gap:10, marginTop:8, padding:"10px 12px", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:8, flexWrap:"wrap", boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
               <span style={{ fontSize:11, color:C.dim }}>CLICK TO HIGHLIGHT:</span>
               {agents.map(a => (
                 <div key={a.id} onClick={() => setHL(h => h === a.id ? null : a.id)}
@@ -468,7 +511,7 @@ export default function App() {
           <div style={{ width:WW + 24, display:"flex", flexDirection:"column", gap:0 }}>
 
           {/* Summary row */}
-          <div style={{ display:"flex", background:C.panel, border:`1px solid ${C.border}`, borderRadius:"8px 8px 0 0", borderBottom:"none" }}>
+          <div style={{ display:"flex", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:"8px 8px 0 0", borderBottom:"none", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)" }}>
             {[
               { label:"P1 ASSIGNED",  val:Object.keys(result.primary).length,   col:C.green },
               { label:"P2 COVERAGE",  val:Object.keys(result.secondary).length,  col:C.gold },
@@ -492,7 +535,7 @@ export default function App() {
           </div>
 
           {/* Tab body */}
-          <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderTop:"none", borderRadius:"0 0 8px 8px", padding:12, minHeight:200, maxHeight:260, overflow:"auto", position:"relative", zIndex:1 }}>
+          <div style={{ background:C.gradientPanel, border:`1px solid ${C.border}`, borderTop:"none", borderRadius:"0 0 8px 8px", padding:12, minHeight:200, maxHeight:260, overflow:"auto", position:"relative", zIndex:1, boxShadow:"0 4px 12px rgba(0,0,0,0.25)" }}>
 
             {/* PRIORITY TAB */}
             {tab === "priority" && (
@@ -508,8 +551,8 @@ export default function App() {
                     <div key={agent.id} onClick={() => setHL(h => h === agent.id ? null : agent.id)}
                       style={{ marginBottom:8, padding:"8px 10px", borderRadius:5, cursor:"pointer",
                         border:`1px solid ${isHl?color:C.border}`,
-                        background: isHl?"rgba(56,189,248,0.1)":C.bg,
-                        boxShadow: isHl?`0 0 10px ${color}25`:"none", transition:"all 0.2s" }}>
+                        background: isHl ? C.gradientPurple : C.bg,
+                        boxShadow: isHl?`0 0 12px ${color}30`:"none", transition:"all 0.2s" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
                         <div style={{ width:9, height:9, borderRadius:"50%", background:color, boxShadow:`0 0 6px ${color}` }}/>
                         <span style={{ color, fontWeight:600, fontSize:12 }}>{agent.id}</span>
@@ -742,12 +785,12 @@ export default function App() {
             const primEntry = prList.find(e => e.role === "primary");
             const secEntry = prList.find(e => e.role === "secondary");
             return (
-              <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
-                <div style={{ background:"#1a2744", border:`1px solid ${C.border}`, borderRadius:8, height:240, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11 }}>
+                    <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
+                <div style={{ background:C.gradientOmbre, border:`1px solid ${isHl ? color + "99" : C.border}`, borderRadius:8, height:240, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11, boxShadow: isHl ? `0 0 16px ${color}30` : "0 2px 8px rgba(0,0,0,0.2)" }}>
                   {agent.id} Live Camera View
                 </div>
                 <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
-                  style={{ marginTop:6, padding:12, background:"#0f1629", border:`1px solid ${isHl?color:C.border}`, borderRadius:8, cursor:"pointer" }}>
+                  style={{ marginTop:6, padding:12, background:C.gradientPanel, border:`1px solid ${isHl?color:C.border}`, borderRadius:8, cursor:"pointer", boxShadow: isHl ? `0 0 12px ${color}25` : "none" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", gap:16 }}>
                     <div>
                       <div style={{ fontSize:11, color:C.text, marginBottom:2 }}>{agent.id}</div>
@@ -776,7 +819,7 @@ export default function App() {
       </div>
 
       {/* Config footer */}
-      <div style={{ flexShrink:0, marginTop:10, padding:"10px 16px", background:C.panel, border:`1px solid ${C.border}`, borderRadius:8, display:"flex", gap:18, flexWrap:"wrap", alignItems:"center" }}>
+      <div style={{ flexShrink:0, marginTop:10, padding:"10px 16px", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:8, display:"flex", gap:18, flexWrap:"wrap", alignItems:"center", boxShadow:"0 2px 8px rgba(0,0,0,0.25)" }}>
         <span style={{ fontSize:11, color:C.dim, letterSpacing:"0.05em" }}>ENGINE CONFIG — mirrors assignment_engine.py</span>
         {[
           { label:"Algorithm",     value:"priority_v2_antithrash",     col:C.green },

@@ -357,12 +357,51 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.restore();
   }
 
-  // Agents
+  // Agents: quarter-circle FOV wedge then dot + label
+  const FOV_WEDGE_RADIUS = 48;  // px
+  const FOV_WEDGE_SPAN = Math.PI / 2;  // 90° quarter circle
+
   for (const a of agents) {
     const ap = toPx(a.position);
     const color = AGENT_COLORS[a.id] || "#888";
     const isHl = highlighted === a.id;
     const r = isHl ? 14 : 11;
+
+    // Heading: fusion uses degrees (0 = +x, 90 = +y). Canvas: 0 = right, π/2 = down.
+    // If no heading, derive from velocity.
+    let angleRad;
+    if (a.heading != null && typeof a.heading === "number") {
+      angleRad = (a.heading * Math.PI) / 180;
+    } else if (a.vel && (a.vel.vx !== 0 || a.vel.vy !== 0)) {
+      angleRad = Math.atan2(a.vel.vy, a.vel.vx);
+    } else {
+      angleRad = 0;
+    }
+    const startAngle = angleRad - FOV_WEDGE_SPAN / 2;
+    const endAngle = angleRad + FOV_WEDGE_SPAN / 2;
+
+    // Draw quarter-circle wedge (camera FOV) behind the agent
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(ap.x, ap.y);
+    ctx.arc(ap.x, ap.y, FOV_WEDGE_RADIUS, startAngle, endAngle);
+    ctx.closePath();
+    if (color.startsWith("#")) {
+      const hex = color.slice(1);
+      const R = parseInt(hex.slice(0, 2), 16), G = parseInt(hex.slice(2, 4), 16), B = parseInt(hex.slice(4, 6), 16);
+      ctx.fillStyle = `rgba(${R},${G},${B},0.22)`;
+    } else {
+      ctx.fillStyle = "rgba(136,136,136,0.2)";
+    }
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.2;
+    ctx.globalAlpha = 0.9;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // Agent dot + label
     ctx.save();
     ctx.shadowColor = color; ctx.shadowBlur = isHl ? 30 : 14;
     ctx.beginPath(); ctx.arc(ap.x, ap.y, r, 0, Math.PI * 2);
