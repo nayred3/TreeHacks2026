@@ -12,6 +12,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/fusion/, "/api"),
       },
+      "/api/stream": {
+        target: "http://127.0.0.1:5056",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/stream/, "/stream"),
+      },
     },
   },
 });

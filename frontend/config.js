@@ -48,6 +48,12 @@ export const AGENT_COLORS = {
 };
 
 export const TARGET_COLOR = "#f87171";
+
+/** Camera IDs that have MJPEG streams. Map id -> path (proxied). cam1 uses default port 5056. */
+export const CAM_STREAM_URLS = {
+  cam1: "/api/stream",
+  cam_1: "/api/stream",
+};
 export const REASSIGN_THRESHOLD = 250;  // cm
 export const STALE_TTL = 10000;
 

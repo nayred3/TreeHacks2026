@@ -1,5 +1,6 @@
 import argparse
 import os
+import threading
 import time
 
 # MPS (Apple Silicon): torchvision NMS not implemented; use CPU fallback for that op
@@ -8,6 +9,7 @@ os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 import json
 import socket
 from dataclasses import dataclass
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Optional, Dict, Any, List, Tuple
 
 import cv2
@@ -222,6 +224,11 @@ def parse_args() -> argparse.Namespace:
                         "(0 = disabled, use static --cam-x/--cam-y/--yaw-deg). "
                         "Matches the format sent to position_receiver.py.")
 
+    # ---- MJPEG HTTP stream (for frontend camera view boxes) ----
+    p.add_argument("--stream-port", type=int, default=0,
+                   help="HTTP port to serve MJPEG stream at /stream (0 = disabled). "
+                        "Frontend can embed this in the Live Demo camera view boxes.")
+
     return p.parse_args()
 
 
@@ -274,6 +281,63 @@ class JsonEmitter:
         if self.mode in ("udp", "both") and self.sock is not None:
             # Keep packets reasonably small: don't include images
             self.sock.sendto(line, self.udp_addr)
+
+
+# ---------------- MJPEG stream server (for frontend camera view boxes) ----------------
+_stream_frame: Optional[np.ndarray] = None
+_stream_lock = threading.Lock()
+
+
+def _set_stream_frame(frame: "cv2.Mat") -> None:
+    """Store the latest frame for MJPEG streaming."""
+    global _stream_frame
+    with _stream_lock:
+        _stream_frame = frame.copy() if frame is not None else None
+
+
+def _get_stream_frame() -> Optional["cv2.Mat"]:
+    with _stream_lock:
+        return _stream_frame
+
+
+class MJPEGStreamHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        if self.path != "/stream":
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        boundary = b"frame"
+        while True:
+            frame = _get_stream_frame()
+            if frame is not None:
+                ok, jpeg = cv2.imencode(".jpg", frame)
+                if ok:
+                    chunk = (
+                        b"--" + boundary + b"\r\n"
+                        b"Content-Type: image/jpeg\r\n"
+                        b"Content-Length: " + str(len(jpeg)).encode() + b"\r\n\r\n"
+                        + jpeg.tobytes() + b"\r\n"
+                    )
+                    try:
+                        self.wfile.write(chunk)
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError):
+                        break
+            time.sleep(0.033)  # ~30 fps
+
+    def log_message(self, format: str, *args: Any) -> None:
+        pass  # Suppress request logging
+
+
+def start_stream_server(port: int) -> None:
+    server = HTTPServer(("127.0.0.1", port), MJPEGStreamHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    print(f"[STREAM] MJPEG at http://127.0.0.1:{port}/stream")
 
 
 def footpoint_px(bbox: List[int]) -> Tuple[float, float]:
@@ -382,6 +446,9 @@ def main() -> None:
 
     emitter = JsonEmitter(args.out_mode, args.udp_host, args.udp_port)
 
+    if args.stream_port > 0:
+        start_stream_server(args.stream_port)
+
     target_fps = args.target_fps if args.target_fps > 0 else None
     cam = CameraSource(args.source, args.camera_id, args.width, args.height, target_fps=target_fps)
 
@@ -460,6 +527,8 @@ def main() -> None:
 
             vis = pkt.frame_bgr.copy()
             draw_tracks(vis, last_tracks)
+            if args.stream_port > 0:
+                _set_stream_frame(vis)
             cv2.putText(
                 vis,
                 ("YOLO + BoT-SORT-ReID. Press 'q' to quit." if getattr(args, "tracker_reid", False) else "YOLO + BoT-SORT. Press 'q' to quit."),

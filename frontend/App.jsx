@@ -1,10 +1,25 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { WW, WH, AGENT_COLORS, TARGET_COLOR, REASSIGN_THRESHOLD, STALE_TTL, toPx, toWorld, ROOM_BOUNDS, CM_PER_TICK } from "./config.js";
+import { WW, WH, AGENT_COLORS, TARGET_COLOR, REASSIGN_THRESHOLD, STALE_TTL, CAM_STREAM_URLS, toPx, toWorld, ROOM_BOUNDS, CM_PER_TICK } from "./config.js";
 import { euclidean, randomWalk } from "./utils.js";
 import { runPriorityAssignment } from "./assignment.js";
 import { drawScene } from "./canvas.js";
 import { extractWallGrid, createPresetWallLayout, wallLayoutToGrid, gridToWallLayout, WALL_LAYOUT_OPTIONS, GRID_SIZE } from "./pathfinding.js";
 import { fetchFusionData } from "./liveDemo.js";
+
+/** Embeds MJPEG stream; falls back to placeholder if stream unreachable. */
+function CameraStream({ agentId, streamUrl, fallback }) {
+  const [error, setError] = useState(false);
+  const url = error ? null : streamUrl;
+  if (error) return fallback;
+  return (
+    <img
+      src={url}
+      alt={`${agentId} live view`}
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      onError={() => setError(true)}
+    />
+  );
+}
 
 export default function App() {
   const canvasRef = useRef(null);
@@ -769,7 +784,7 @@ export default function App() {
                   <button onClick={() => setEvents([])} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.dim, padding:"4px 10px", borderRadius:3, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>CLEAR</button>
                 </div>
                 <div style={{ fontSize:11, color:C.dim, marginBottom:8, lineHeight:1.6 }}>
-                  Audit stream of assignment behavior: <span style={{ color:C.gold }}>↩ reassign</span>, <span style={{ color:C.red }}>🔴 spawn</span>, <span style={{ color:C.green }}>✅ neutralise</span>, and system status.
+                  Audit stream of assignment behavior: <span style={{ color:C.gold }}>↩ reassign</span>, <span style={{ color:C.red }}>🔴 spawn</span>, <span style={{ color:C.green }}>✅ neutralize</span>, and system status.
                 </div>
                 <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
                   {[
@@ -820,8 +835,12 @@ export default function App() {
             const secEntry = prList.find(e => e.role === "secondary");
             return (
                     <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
-                <div style={{ background:C.gradientOmbre, border:`1px solid ${isHl ? color + "99" : C.border}`, borderRadius:8, height:240, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11, boxShadow: isHl ? `0 0 16px ${color}30` : "0 2px 8px rgba(0,0,0,0.2)" }}>
-                  {agent.id} Live Camera View
+                <div style={{ background:C.gradientOmbre, border:`1px solid ${isHl ? color + "99" : C.border}`, borderRadius:8, height:240, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11, boxShadow: isHl ? `0 0 16px ${color}30` : "0 2px 8px rgba(0,0,0,0.2)" }}>
+                  {CAM_STREAM_URLS[agent.id] && isLiveDemo ? (
+                    <CameraStream agentId={agent.id} streamUrl={CAM_STREAM_URLS[agent.id]} fallback={<span>{agent.id} Live Camera View</span>} />
+                  ) : (
+                    <span>{agent.id} Live Camera View</span>
+                  )}
                 </div>
                 <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
                   style={{ marginTop:6, padding:12, background:C.gradientPanel, border:`1px solid ${isHl?color:C.border}`, borderRadius:8, cursor:"pointer", boxShadow: isHl ? `0 0 12px ${color}25` : "none" }}>

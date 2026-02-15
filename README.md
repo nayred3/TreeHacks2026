@@ -26,13 +26,13 @@ When **LIVE DEMO** is pressed, the frontend polls fusion camera data and plots a
    python -m fusion.live_fusion
    ```
 
-2. **Start camera.py** (webcam + YOLO detection + BoT-SORT tracking, emits to UDP 5055):
+2. **Start camera.py** (webcam + YOLO detection + BoT-SORT tracking, emits to UDP 5055, streams MJPEG for frontend):
    ```bash
-   python computervision/camera.py --camera-id cam1 --source 0 \
+   python computervision/camera.py --camera-id cam1 --source 0 --show \
        --emit camera+tracks --cam-x 0 --cam-y 0 --yaw-deg 0 --hfov-deg 70 \
-       --udp-port 5055
+       --udp-port 5055 --stream-port 5056
    ```
-   Optional: if using iPhone for position updates, run `position_receiver.py` and point camera.py at it.
+   The `--stream-port 5056` serves the camera view at `http://127.0.0.1:5056/stream`, which the frontend embeds in the cam1 camera view box when Live Demo is on. Optional: if using iPhone for position updates, run `position_receiver.py` and point camera.py at it.
 
 3. **Start the frontend** (`npm run dev` or `./node_modules/.bin/vite`) and click **LIVE DEMO**.
 
