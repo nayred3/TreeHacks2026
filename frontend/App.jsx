@@ -438,7 +438,7 @@ export default function App() {
 
       {/* ── Main layout: left cameras | center (map + recap) | right cameras ── */}
       <div style={{ maxWidth:"100%", overflowX:"auto" }}>
-      <div style={{ display:"flex", gap:1, justifyContent:"center", alignItems:"stretch", minWidth:"min-content" }}>
+      <div style={{ display:"flex", gap:0, justifyContent:"center", alignItems:"stretch", minWidth:"min-content" }}>
 
         {/* Left column: Agent 1 & 2 camera views */}
         <div style={{ display:"flex", flexDirection:"column", gap:8, width:200, minWidth:160, flexShrink:1 }}>
