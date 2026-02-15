@@ -76,29 +76,37 @@ export function createPresetWallLayout(ww, wh, layoutType = "corridor") {
     return { walls, doors };
   }
 
-  // schematic-47x37: 47.17' × 37.5' room from blueprint (thick = walls, dotted = dimension indicators)
+  // schematic-47x37: 47.17' × 37.5' room from blueprint
+  // Top: three walls carve out a box (top + left + right). Right side: two parallel walls (alcove).
   if (layoutType === "schematic-47x37") {
     const W_FT = 47.17, H_FT = 37.5;
     const sx = ww / W_FT, sy = wh / H_FT;
 
-    // Walls (thick lines) — no doors, open floor plan
-    addHWall(0, 0, ww);                                                    // Top: 47.17'
-    addVWall(0, 0, 9.0833 * sy);                                           // Left: 9.0833'
-    addVWall(ww, 0, 9.0833 * sy);                                          // Right top: 9.0833'
-    addVWall(ww, 20.9166 * sy, 24.6666 * sy);                              // Right middle: 3.75'
-    addVWall((W_FT - 12.5) * sx, 20.9166 * sy, 24.6666 * sy);              // Internal right: 3.75', 12.5' from right edge
+    // ── Top box: three walls ──
+    addHWall(0, 0, ww);                                                    // Top wall: 47.17'
+    addVWall(0, 0, 9.0833 * sy);                                           // Left wall: 9.0833'
+    addVWall(ww, 0, 9.0833 * sy);                                          // Right wall: 9.0833'
 
-    // Dimension indicators (dotted lines) — measurement guides
-    const pad = 16;
+    // ── Right side: two parallel walls (3.75' tall alcove, 12.5' apart) ──
+    const y0 = 20.9166 * sy, y1 = 24.6666 * sy;                            // 3.75' vertical span
+    const xRight = ww;                                                     // Right edge
+    const xInner = (W_FT - 12.5) * sx;                                     // 12.5' in from right
+    addVWall(xRight, y0, y1);                                              // Outer wall
+    addVWall(xInner, y0, y1);                                              // Inner wall (next to outer)
+
+    // ── Dimension indicators (dotted lines) per schematic ──
+    const pad = 14;
     const dimensions = [
       { x1: pad, y1: pad, x2: ww - pad, y2: pad, label: "47.17 ft" },
       { x1: pad, y1: pad, x2: pad, y2: wh - pad, label: "37.5 ft" },
       { x1: pad, y1: pad, x2: pad, y2: 9.0833 * sy + pad, label: "9.0833 ft" },
       { x1: ww - pad, y1: pad, x2: ww - pad, y2: 9.0833 * sy + pad, label: "9.0833 ft" },
-      { x1: ww - pad, y1: 9.0833 * sy + pad, x2: ww - pad, y2: 20.9166 * sy - pad, label: "11.8333 ft" },
-      { x1: ww - pad, y1: 20.9166 * sy + pad, x2: ww - pad, y2: 24.6666 * sy - pad, label: "3.75 ft" },
-      { x1: ww - pad, y1: 24.6666 * sy + pad, x2: ww - pad, y2: wh - pad, label: "5.0833 ft" },
-      { x1: (W_FT - 12.5) * sx + pad, y1: 24.6666 * sy + pad, x2: ww - pad, y2: 24.6666 * sy + pad, label: "12.5 ft" },
+      { x1: ww - pad, y1: 9.0833 * sy + pad, x2: ww - pad, y2: y0 - pad, label: "11.8333 ft" },
+      { x1: ww - pad, y1: y0 + pad, x2: ww - pad, y2: y1 - pad, label: "3.75 ft" },
+      { x1: ww - pad, y1: y1 + pad, x2: ww - pad, y2: wh - pad, label: "5.0833 ft" },
+      { x1: xInner + pad, y1: y1 + pad, x2: ww - pad, y2: y1 + pad, label: "12.5 ft" },
+      { x1: 0, y1: pad + 20, x2: 6.3 * sx, y2: pad + 20, label: "6.3 ft" },
+      { x1: ww - 6.3 * sx, y1: pad + 20, x2: ww, y2: pad + 20, label: "6.3 ft" },
     ];
 
     return { walls, doors, dimensions };
