@@ -62,33 +62,73 @@ class CameraSource:
         self.width = width
         self.height = height
         self._frame_index = 0
+        self.source = source
+        self.target_fps = target_fps
+        self.is_http = source.startswith("http://") or source.startswith("https://")
 
-        try:
-            cap_source = int(source)
-        except ValueError:
-            cap_source = source
+        self.cap = self._open_capture()
 
-        self.cap = cv2.VideoCapture(cap_source, cv2.CAP_AVFOUNDATION)
         if not self.cap.isOpened():
             raise RuntimeError(f"Could not open camera/video source: {source}")
 
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        if target_fps is not None:
-            self.cap.set(cv2.CAP_PROP_FPS, int(target_fps))
+        # For local webcams only: try to set size/fps (HTTP streams ignore these)
+        if not self.is_http:
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+            if target_fps is not None:
+                self.cap.set(cv2.CAP_PROP_FPS, int(target_fps))
+
+    def _open_capture(self) -> cv2.VideoCapture:
+        if self.is_http:
+            # MJPEG stream from iPhone app
+            return cv2.VideoCapture(self.source)
+
+        # Local camera/video
+        try:
+            cap_source = int(self.source)
+        except ValueError:
+            cap_source = self.source
+
+        # Mac webcam backend
+        return cv2.VideoCapture(cap_source, cv2.CAP_AVFOUNDATION)
+
+    def _reconnect(self) -> None:
+        try:
+            self.cap.release()
+        except Exception:
+            pass
+        time.sleep(0.2)
+        self.cap = self._open_capture()
 
     def read(self) -> Optional[FramePacket]:
         ok, frame = self.cap.read()
         ts = time.time()
+
         if not ok or frame is None:
-            return None
+            # For HTTP streams, transient failures happen; try reconnect
+            if self.is_http:
+                self._reconnect()
+                ok2, frame2 = self.cap.read()
+                ts2 = time.time()
+                if not ok2 or frame2 is None:
+                    return None
+                frame = frame2
+                ts = ts2
+            else:
+                return None
+
+        # Resize to your working resolution (YOLO + fusion expects consistent w/h)
         frame = cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_AREA)
+
         pkt = FramePacket(self.camera_id, frame, ts, self._frame_index, self.width, self.height)
         self._frame_index += 1
         return pkt
 
     def release(self) -> None:
-        self.cap.release()
+        try:
+            self.cap.release()
+        except Exception:
+            pass
 
 
 def parse_args() -> argparse.Namespace:
