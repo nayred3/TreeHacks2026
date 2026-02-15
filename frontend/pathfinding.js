@@ -13,7 +13,6 @@ export const WALL_LAYOUT_OPTIONS = [
   { id: "simple", label: "1 room" },
   { id: "two-room", label: "2-room split" },
   { id: "grid", label: "4 rooms" },
-  { id: "dual-vertical", label: "Example Simulation" },
 ];
 
 /**

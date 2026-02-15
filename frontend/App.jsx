@@ -358,6 +358,10 @@ export default function App() {
           <button onClick={spawn} style={{ background:"#180e0e", border:`1px solid #4a1010`, color:"#ff6b6b", padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊕ SPAWN</button>
           <button onClick={neutralise} style={{ background:"#0a160e", border:`1px solid #1a4020`, color:C.green, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊘ NEUTRALISE</button>
           <button onClick={scatter} style={{ background:"#12100a", border:`1px solid #3a3010`, color:C.yellow, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⚡ SCATTER</button>
+          <button onClick={() => addPresetWalls("dual-vertical")} style={{
+            background:"#1a1525", border:`1px solid ${C.purple}80`, color:C.purple,
+            padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit",
+          }}>EXAMPLE SIMULATION</button>
           <div ref={wallsDropdownRef} style={{ position:"relative" }}>
             <button onClick={() => setWallsDropdownOpen(o => !o)} style={{
               background: wallsDropdownOpen ? "#1a1f2e" : "#13161f", border:`1px solid ${C.orange}80`, color:C.orange,

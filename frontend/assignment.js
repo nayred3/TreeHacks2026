@@ -4,7 +4,7 @@
  * Euclidean mode:
  * - Primary uses a globally optimal assignment that minimizes total travel cost
  *   while enforcing coverage rules (all targets covered when agents >= targets).
- * - Remaining targets are assigned in per-agent rounds (P2, then P3+), where
+ * - Remaining targets are assigned in per-agent rounds where
  *   each target chooses the closest available agent, tie-broken by earliest
  *   completion of the agent's already-assigned tasks.
  *
