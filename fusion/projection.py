@@ -35,7 +35,7 @@ def image_offset_to_angle_rad(
     offset_px = cx_img - center_x
     if focal_px is None:
         focal_px = focal_length_px(int(image_width), DEFAULT_HFOV_DEG)
-    return math.atan2(offset_px, focal_px)
+    return math.atan2(-offset_px, focal_px)
 
 
 def project_detection_to_world(
@@ -96,7 +96,7 @@ def world_position_to_bbox(
     angle_offset = _normalize_angle(world_angle - heading_rad)
     focal_h = focal_length_px(image_width, DEFAULT_HFOV_DEG)
     focal_v = focal_length_px_vertical(image_width, image_height, DEFAULT_HFOV_DEG)
-    offset_px = focal_h * math.tan(angle_offset)
+    offset_px = -focal_h * math.tan(angle_offset)
     center_x = image_width / 2.0 + offset_px
     center_y = image_height / 2.0
     height_px = person_height_m * focal_v / distance_m

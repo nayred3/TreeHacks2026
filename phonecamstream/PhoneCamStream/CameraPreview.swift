@@ -1,27 +1,22 @@
 import SwiftUI
-import AVFoundation
+import ARKit
+import SceneKit
 
-/// A UIView whose backing layer is an AVCaptureVideoPreviewLayer.
-private class _PreviewUIView: UIView {
-    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+/// SwiftUI wrapper around ARSCNView — shows the live camera feed
+/// from the ARSession with no 3D content overlay.
+struct ARCameraPreview: UIViewRepresentable {
+    let session: ARSession
 
-    var previewLayer: AVCaptureVideoPreviewLayer {
-        layer as! AVCaptureVideoPreviewLayer
-    }
-}
-
-/// SwiftUI wrapper around AVCaptureVideoPreviewLayer.
-struct CameraPreviewView: UIViewRepresentable {
-    let session: AVCaptureSession
-
-    func makeUIView(context: Context) -> UIView {
-        let view = _PreviewUIView()
-        view.previewLayer.session = session
-        view.previewLayer.videoGravity = .resizeAspectFill
+    func makeUIView(context: Context) -> ARSCNView {
+        let view = ARSCNView()
+        view.session = session
+        view.scene = SCNScene()                    // empty scene = camera only
+        view.automaticallyUpdatesLighting = false
+        view.debugOptions = []                     // no debug overlays
         return view
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
-        // Preview layer auto-resizes with the view.
+    func updateUIView(_ uiView: ARSCNView, context: Context) {
+        // ARSCNView auto-updates from the session.
     }
 }

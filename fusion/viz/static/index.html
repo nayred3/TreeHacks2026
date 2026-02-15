@@ -49,6 +49,7 @@
             <g id="vision-cones-layer"></g>
             <g id="estimation-lines-layer"></g>
             <g id="tracks-layer"></g>
+            <g id="fused-tracks-layer"></g>
             <g id="cameras-layer"></g>
             <g id="labels-layer"></g>
           </svg>
@@ -79,7 +80,9 @@
         </div>
         <div class="legend-group">
           <h3>Estimation</h3>
-          <div class="legend-row"><span class="dot estimated"></span> Estimated from bbox</div>
+          <div class="legend-row"><span class="dot estimated"></span> Per-camera estimate (bbox)</div>
+          <div class="legend-row"><span class="diamond-sample"></span> Pipeline fused track</div>
+          <div class="legend-row"><span class="diamond-sample stale-diamond"></span> Pipeline last-seen</div>
           <div class="legend-row"><span class="line-sample error-good"></span> Error &lt; 0.5 m</div>
           <div class="legend-row"><span class="line-sample error-ok"></span> Error 0.5 &ndash; 1.5 m</div>
           <div class="legend-row"><span class="line-sample error-bad"></span> Error &gt; 1.5 m</div>

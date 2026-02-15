@@ -27,6 +27,8 @@
   var _viewCy = 5;
   var _viewHeading = 0;   // camera heading in degrees (used when heading-up)
   var _headingUp = true;  // true = heading points up; false = north up
+  var _liveMode = false;  // true when connected to live_fusion.py
+  var _liveTimer = null;
 
   // ────────────────────────────────────────────────
   //  Coordinate helpers — camera-centred view
@@ -383,17 +385,19 @@
     v.setAttribute("x2", cx); v.setAttribute("y2", VIEW_H - PAD);
     v.setAttribute("class", "crosshair"); g.appendChild(v);
 
-    // Room outline
-    var corners = [
-      [WORLD_X[0], WORLD_Y[0]], [WORLD_X[1], WORLD_Y[0]],
-      [WORLD_X[1], WORLD_Y[1]], [WORLD_X[0], WORLD_Y[1]]
-    ];
-    var pts = corners.map(function (cc) { return w2s(cc[0], cc[1]); });
-    var dd = "M " + pts[0].x + " " + pts[0].y;
-    for (var i = 1; i < pts.length; i++) dd += " L " + pts[i].x + " " + pts[i].y;
-    dd += " Z";
-    var room = ns("path"); room.setAttribute("d", dd); room.setAttribute("class", "room-bounds");
-    g.appendChild(room);
+    // Room outline (simulation mode only — live mode has no fixed room)
+    if (!_liveMode) {
+      var corners = [
+        [WORLD_X[0], WORLD_Y[0]], [WORLD_X[1], WORLD_Y[0]],
+        [WORLD_X[1], WORLD_Y[1]], [WORLD_X[0], WORLD_Y[1]]
+      ];
+      var pts = corners.map(function (cc) { return w2s(cc[0], cc[1]); });
+      var dd = "M " + pts[0].x + " " + pts[0].y;
+      for (var i = 1; i < pts.length; i++) dd += " L " + pts[i].x + " " + pts[i].y;
+      dd += " Z";
+      var room = ns("path"); room.setAttribute("d", dd); room.setAttribute("class", "room-bounds");
+      g.appendChild(room);
+    }
 
     // ── Compass (shows where north is) ──
     var ccx = VIEW_W - 50, ccy = 50, cr = 24;
@@ -481,7 +485,8 @@
       if (!cam) return;
       var cx = cam.position[0], cy = cam.position[1];
       var h = (cam.heading || 0) * Math.PI / 180;
-      var a1 = h - HALF_FOV, a2 = h + HALF_FOV;
+      var camHalfFov = cam.hfov_deg ? (cam.hfov_deg / 2) * Math.PI / 180 : HALF_FOV;
+      var a1 = h - camHalfFov, a2 = h + camHalfFov;
       var steps = 60;
       var pts = [];
       for (var i = 0; i <= steps; i++) {
@@ -789,6 +794,86 @@
     });
   }
 
+  // ────────────────────────────────────────────────
+  //  Pipeline fused tracks (diamond overlay)
+  // ────────────────────────────────────────────────
+  var FUSED_COLOR_VIS   = "#06b6d4";  // cyan — visible
+  var FUSED_COLOR_STALE = "#0e7490";  // darker cyan — last-seen
+
+  function drawFusedTracks(fusedTracks, simNow) {
+    var g = document.getElementById("fused-tracks-layer");
+    var tip = document.getElementById("tooltip");
+    g.innerHTML = "";
+    if (!fusedTracks || !fusedTracks.length) return;
+
+    fusedTracks.forEach(function (ft) {
+      var pos = ft.position;
+      var vis = ft.visible;
+      var age = simNow - ft.last_seen;
+      var s = w2s(pos[0], pos[1]);
+      var sz = vis ? 9 : 7;
+
+      // Diamond = rotated square
+      var pts = [
+        (s.x) + "," + (s.y - sz),
+        (s.x + sz) + "," + (s.y),
+        (s.x) + "," + (s.y + sz),
+        (s.x - sz) + "," + (s.y),
+      ].join(" ");
+
+      var poly = ns("polygon");
+      poly.setAttribute("points", pts);
+
+      if (vis) {
+        poly.setAttribute("fill", FUSED_COLOR_VIS);
+        poly.setAttribute("stroke", "#22d3ee");
+        poly.setAttribute("stroke-width", 1.5);
+        poly.setAttribute("opacity", "0.9");
+      } else {
+        poly.setAttribute("fill", "rgba(6,182,212,0.25)");
+        poly.setAttribute("stroke", FUSED_COLOR_STALE);
+        poly.setAttribute("stroke-width", 1.2);
+        poly.setAttribute("stroke-dasharray", "3,2");
+        poly.setAttribute("opacity", Math.max(0.3, 1.0 - age * 0.08).toString());
+      }
+      poly.style.cursor = "pointer";
+      poly.setAttribute("class", "fused-diamond");
+
+      // Tooltip
+      (function (f, a) {
+        var mp = f.matched_person;
+        var matchLabel = mp ? "P" + mp : "T" + f.id;
+        var errInfo = (f.match_error != null) ? "  err: " + f.match_error.toFixed(2) + "m" : "";
+        poly.addEventListener("mouseenter", function (e) {
+          var status = f.visible
+            ? "VISIBLE &middot; conf " + (f.confidence * 100).toFixed(0) + "%"
+            : "LAST SEEN " + a.toFixed(1) + "s ago";
+          tip.innerHTML =
+            "<strong style='color:#22d3ee'>Pipeline " + matchLabel + "</strong> (track " + f.id + ")<br>" +
+            "Fused est: (" + f.position[0].toFixed(2) + ", " + f.position[1].toFixed(2) + ") m" + errInfo + "<br>" +
+            status + "<br>" +
+            "<span class='meta'>Sources: " + (f.source_cameras || []).join(", ") + "</span>";
+          tip.classList.add("visible"); posTip(tip, e);
+        });
+        poly.addEventListener("mouseleave", function () { tip.classList.remove("visible"); });
+        poly.addEventListener("mousemove", function (e) { posTip(tip, e); });
+      })(ft, age);
+
+      g.appendChild(poly);
+
+      // Label — use matched person ID for easy comparison
+      var labelText = ft.matched_person ? "P" + ft.matched_person : "T" + ft.id;
+      var lbl = ns("text");
+      lbl.setAttribute("x", s.x); lbl.setAttribute("y", s.y - sz - 5);
+      lbl.setAttribute("text-anchor", "middle");
+      lbl.setAttribute("fill", vis ? "rgba(34,211,238,0.85)" : "rgba(34,211,238,0.45)");
+      lbl.setAttribute("font-size", "9"); lbl.setAttribute("font-weight", "600");
+      lbl.setAttribute("class", "label");
+      lbl.textContent = labelText + (vis ? "" : " \u23F1");
+      g.appendChild(lbl);
+    });
+  }
+
   // ════════════════════════════════════════════════
   //  MINI-MAP (full-room overview inset)
   // ════════════════════════════════════════════════
@@ -806,7 +891,7 @@
     };
   }
 
-  function drawMiniMap(cameras, activeCamId, walls, persons, feed, simNow) {
+  function drawMiniMap(cameras, activeCamId, walls, persons, feed, simNow, fusedTracks) {
     // ── Grid & room outline ──
     var gGrid = document.getElementById("mm-grid");
     gGrid.innerHTML = "";
@@ -862,7 +947,8 @@
     if (activeCam) {
       var cx = activeCam.position[0], cy = activeCam.position[1];
       var h = (activeCam.heading || 0) * Math.PI / 180;
-      var a1 = h - HALF_FOV, a2 = h + HALF_FOV;
+      var mmHalfFov = activeCam.hfov_deg ? (activeCam.hfov_deg / 2) * Math.PI / 180 : HALF_FOV;
+      var a1 = h - mmHalfFov, a2 = h + mmHalfFov;
       var fovPts = [];
       for (var fi = 0; fi <= 30; fi++) {
         var t = fi / 30;
@@ -930,6 +1016,25 @@
         gTracks.appendChild(eDot);
       });
     }
+
+    // ── Fused pipeline diamonds on minimap ──
+    (fusedTracks || []).forEach(function (ft) {
+      var fp = mm(ft.position[0], ft.position[1]);
+      var sz = ft.visible ? 4 : 3;
+      var pts = [
+        fp.x + "," + (fp.y - sz),
+        (fp.x + sz) + "," + fp.y,
+        fp.x + "," + (fp.y + sz),
+        (fp.x - sz) + "," + fp.y,
+      ].join(" ");
+      var d = ns("polygon");
+      d.setAttribute("points", pts);
+      d.setAttribute("fill", ft.visible ? "rgba(6,182,212,0.8)" : "rgba(6,182,212,0.25)");
+      d.setAttribute("stroke", ft.visible ? "#22d3ee" : "#0e7490");
+      d.setAttribute("stroke-width", "0.6");
+      if (!ft.visible) d.setAttribute("stroke-dasharray", "2,1");
+      gTracks.appendChild(d);
+    });
 
     // ── Camera markers ──
     var gCams = document.getElementById("mm-cameras");
@@ -1031,12 +1136,13 @@
     _viewCy = cam.position[1];
     _viewHeading = cam.heading || 0;
 
-    var walls   = _data.walls || [];
-    var ts      = _data.timesteps || [];
-    var frame   = ts[_step] || { persons: [], camera_feeds: {} };
-    var persons = frame.persons || [];
-    var feed    = (frame.camera_feeds || {})[_camId] || null;
-    var simNow  = frame.t || 0;
+    var walls       = _data.walls || [];
+    var ts          = _data.timesteps || [];
+    var frame       = ts[_step] || { persons: [], camera_feeds: {}, fused_tracks: [] };
+    var persons     = frame.persons || [];
+    var fusedTracks = frame.fused_tracks || [];
+    var feed        = (frame.camera_feeds || {})[_camId] || null;
+    var simNow      = frame.t || 0;
 
     // Camera feed (canvas)
     drawFeed(cam, feed);
@@ -1048,10 +1154,13 @@
     drawWalls(walls);
     drawVisionCones(_data.cameras || [], _camId, walls);
     drawTracks(persons, feed, cam, walls, simNow);
+    drawFusedTracks(fusedTracks, simNow);
     drawCameras(_data.cameras || [], _camId);
 
-    // Mini-map (full room inset)
-    drawMiniMap(_data.cameras || [], _camId, walls, persons, feed, simNow);
+    // Mini-map (full room inset) — skip in live mode
+    if (!_liveMode) {
+      drawMiniMap(_data.cameras || [], _camId, walls, persons, feed, simNow, fusedTracks);
+    }
   }
 
   // ════════════════════════════════════════════════
@@ -1184,8 +1293,98 @@
     toggleHeadingUp();
   });
 
+  // ════════════════════════════════════════════════
+  //  LIVE MODE — polls /api/live from live_fusion.py
+  // ════════════════════════════════════════════════
+
+  function startLiveMode() {
+    _liveMode = true;
+
+    // Hide simulation-only UI
+    var timeline = document.querySelector(".timeline");
+    if (timeline) timeline.style.display = "none";
+
+    var mmWrap = document.getElementById("minimap-wrap");
+    if (mmWrap) mmWrap.style.display = "none";
+
+    // Hide the camera-feed panel (no simulated feed in live mode)
+    var feedPanel = document.querySelector(".feed-panel");
+    if (feedPanel) feedPanel.style.display = "none";
+
+    // Update header
+    var h1 = document.querySelector("header h1");
+    if (h1) h1.innerHTML = 'Fusion map <span style="color:#22d3ee;font-size:0.6em;vertical-align:middle;margin-left:6px;letter-spacing:1px">LIVE</span>';
+
+    document.getElementById("status").textContent = "Waiting for cameras\u2026";
+
+    pollLive();
+    _liveTimer = setInterval(pollLive, 200);
+  }
+
+  function pollLive() {
+    fetch("/api/live")
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var cams = d.cameras || [];
+        var tracks = d.fused_tracks || [];
+
+        // Status text
+        if (cams.length === 0) {
+          document.getElementById("status").textContent = "Waiting for cameras\u2026";
+        } else {
+          var nVis = 0;
+          for (var ti = 0; ti < tracks.length; ti++) if (tracks[ti].visible) nVis++;
+          document.getElementById("status").textContent =
+            cams.length + " camera" + (cams.length !== 1 ? "s" : "") +
+            " \u00B7 " + nVis + " tracked" +
+            (tracks.length - nVis > 0 ? " \u00B7 " + (tracks.length - nVis) + " last-seen" : "");
+        }
+
+        // Wrap live data into the format the render functions expect
+        _data = {
+          cameras: cams,
+          walls: d.walls || [],
+          timesteps: [{
+            t: d.timestamp || 0,
+            persons: [],           // no ground truth in live mode
+            fused_tracks: tracks,
+            camera_feeds: {},
+            camera_positions: {},
+          }],
+        };
+        _step = 0;
+
+        // Camera tabs
+        if (cams.length > 0) {
+          if (!_camId || !cams.some(function (c) { return c.id === _camId; })) {
+            _camId = cams[0].id;
+          }
+          buildTabs(cams);
+        }
+
+        render();
+      })
+      .catch(function () {
+        // Silent — will retry on next interval
+      });
+  }
+
   // ────────────────────────────────────────────────
-  //  Boot
+  //  Boot — detect live mode, fall back to simulation
   // ────────────────────────────────────────────────
-  fetchData();
+  fetch("/api/live")
+    .then(function (r) {
+      if (!r.ok) throw new Error("not available");
+      return r.json();
+    })
+    .then(function (d) {
+      if (d.mode === "live") {
+        startLiveMode();
+      } else {
+        fetchData();
+      }
+    })
+    .catch(function () {
+      fetchData();
+    });
 })();

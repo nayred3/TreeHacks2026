@@ -353,10 +353,13 @@ class PositionListener:
                     with self._lock:
                         self._args.cam_x = float(pos[0])
                         self._args.cam_y = float(pos[1])
-                        self._args.yaw_deg = float(heading)
+                        # NOTE: yaw_deg is NOT overridden here — the manual
+                        # --yaw-deg value is the source of truth because
+                        # ARKit's indoor compass heading is unreliable and
+                        # differs between devices.
                         self._count += 1
                     if self._count == 1:
-                        print(f"[POS] First position update: ({pos[0]:.2f}, {pos[1]:.2f}) heading={heading:.1f}°")
+                        print(f"[POS] First position update: ({pos[0]:.2f}, {pos[1]:.2f}) phone_heading={heading:.1f}° (ignored, using --yaw-deg={self._args.yaw_deg:.1f}°)")
             except socket.timeout:
                 continue
             except Exception:

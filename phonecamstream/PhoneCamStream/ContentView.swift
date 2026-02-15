@@ -7,17 +7,17 @@ class AppConfig: ObservableObject {
     @Published var positionX: String = "0.0"
     @Published var positionY: String = "0.0"
 
-    // Logan's Mac – receives video frames for YOLO
-    @Published var loganIP: String = "10.35.2.131"
+    // Video frames (YOLO detection)
+    @Published var loganIP: String = "10.35.6.219"
     @Published var loganPort: String = "5050"
 
-    // Justin's Mac – receives position/heading data for mapping
+    // Position/heading data (mapping)
     @Published var justinIP: String = "10.35.6.219"
     @Published var justinPort: String = "5056"
 
     // Stream quality
-    @Published var streamFPS: Double = 5
-    @Published var jpegQuality: Double = 0.5
+    @Published var streamFPS: Double = 10
+    @Published var jpegQuality: Double = 0.35
 
     // Derived helpers
     var posX: Double { Double(positionX) ?? 0.0 }
@@ -127,7 +127,7 @@ struct RoleSelectionView: View {
             GroupBox("Network") {
                 VStack(spacing: 8) {
                     HStack {
-                        Text("Justin's Mac")
+                        Text("Position data")
                             .font(.caption)
                         Spacer()
                         TextField("10.35.6.219", text: $config.justinIP)
@@ -141,10 +141,10 @@ struct RoleSelectionView: View {
                             .frame(width: 50)
                     }
                     HStack {
-                        Text("Logan's Mac")
+                        Text("Video frames")
                             .font(.caption)
                         Spacer()
-                        TextField("10.35.2.131", text: $config.loganIP)
+                        TextField("10.35.6.219", text: $config.loganIP)
                             .font(.caption.monospaced())
                             .multilineTextAlignment(.trailing)
                             .frame(width: 130)
@@ -200,7 +200,7 @@ struct SetupView: View {
             Section("Stream Settings") {
                 VStack(alignment: .leading) {
                     Text("Frame Rate: \(Int(config.streamFPS)) FPS")
-                    Slider(value: $config.streamFPS, in: 1...15, step: 1)
+                    Slider(value: $config.streamFPS, in: 1...30, step: 1)
                 }
                 VStack(alignment: .leading) {
                     Text("JPEG Quality: \(Int(config.jpegQuality * 100))%")
