@@ -422,8 +422,8 @@ export default function App() {
       {/* ── Header ── */}
       <div style={{ flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
         <div>
-          <div style={{ fontSize:16, fontWeight:600, letterSpacing:"0.05em", background:"linear-gradient(90deg, #38bdf8 0%, #818cf8 50%, #a78bfa 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>PRIORITY ASSIGNMENT ENGINE</div>
-          <div style={{ fontSize:12, color:C.dim, letterSpacing:"0.04em", marginTop:2 }}>DISTANCE-BASED PRIORITY</div>
+          <div style={{ fontSize:16, fontWeight:600, letterSpacing:"0.05em", background:"linear-gradient(90deg, #38bdf8 0%, #818cf8 50%, #a78bfa 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>HIVESIGHT</div>
+          <div style={{ fontSize:12, color:C.dim, letterSpacing:"0.04em", marginTop:2 }}>Real-Time Multi-Camera Shared Spatial Intelligence</div>
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
           {(wallLayout || wallGrid) && !isLiveDemo && (
@@ -810,7 +810,7 @@ export default function App() {
         </div>
 
         {/* Agent panels: top row Alice & Bob, bottom row Charlie & Diana */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gridTemplateRows:"1fr 1fr", rowGap:0, columnGap:2, flex:1, minWidth:320 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gridTemplateRows:"auto auto", rowGap:0, columnGap:8, flex:1, minWidth:320, alignContent:"start" }}>
           {agents.map(agent => {
             const color = AGENT_COLORS[agent.id] || "#888";
             const isHl = hl === agent.id;
