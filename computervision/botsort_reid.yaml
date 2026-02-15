@@ -1,0 +1,23 @@
+# BoT-SORT with ReID enabled, tuned for leave/re-enter (correct re-identification)
+# With model: auto, Ultralytics uses YOLO detector features for ReID (no extra model).
+# Requires Ultralytics 8.3+.
+
+tracker_type: botsort
+track_high_thresh: 0.25
+track_low_thresh: 0.1
+new_track_thresh: 0.25
+# Keep lost tracks longer so ReID can match when person re-enters (default 30)
+track_buffer: 75
+match_thresh: 0.8
+fuse_score: True
+
+gmc_method: sparseOptFlow
+
+# ReID: use YOLO detector features for re-identification
+with_reid: True
+model: auto
+# Allow ReID even when person re-appears elsewhere (default 0.5 masks out re-entries)
+# 0.0 = always consider ReID; 0.05 = only when IoU almost zero (re-entry)
+proximity_thresh: 0.0
+# Min appearance similarity for re-ID; 0.75 balances correct re-IDs vs wrong swaps (default 0.8)
+appearance_thresh: 0.75
