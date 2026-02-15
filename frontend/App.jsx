@@ -3,7 +3,7 @@ import { WW, WH, AGENT_COLORS, TARGET_COLOR, REASSIGN_THRESHOLD, STALE_TTL } fro
 import { euclidean, randomWalk } from "./utils.js";
 import { runPriorityAssignment } from "./assignment.js";
 import { drawScene } from "./canvas.js";
-import { extractWallGrid } from "./pathfinding.js";
+import { extractWallGrid, createPresetWallLayout, wallLayoutToGrid, GRID_SIZE } from "./pathfinding.js";
 
 export default function App() {
   const canvasRef = useRef(null);
@@ -29,6 +29,7 @@ export default function App() {
   const [logFilter, setLogFilter] = useState("all");
   const [schematicImg, setSchematicImg] = useState(null);
   const [wallGrid, setWallGrid]         = useState(null);
+  const [wallLayout, setWallLayout]     = useState(null);
   const fileInputRef = useRef(null);
 
   const addEvent = useCallback((msg, type = "info") =>
@@ -58,15 +59,59 @@ export default function App() {
   useEffect(() => {
     if (!stateRef.current) return;
     let lastT = performance.now(), tickN = 0;
+    const nearestWalkablePos = (p, maxRadius = 20) => {
+      if (!wallGrid?.length) return p;
+      const rows = wallGrid.length;
+      const cols = wallGrid[0].length;
+      const c0 = Math.max(0, Math.min(cols - 1, Math.floor(p.x / GRID_SIZE)));
+      const r0 = Math.max(0, Math.min(rows - 1, Math.floor(p.y / GRID_SIZE)));
+      if (!wallGrid[r0][c0]) return p;
+
+      for (let radius = 1; radius <= maxRadius; radius++) {
+        for (let dr = -radius; dr <= radius; dr++) {
+          for (let dc = -radius; dc <= radius; dc++) {
+            const rr = r0 + dr;
+            const cc = c0 + dc;
+            if (rr < 0 || rr >= rows || cc < 0 || cc >= cols) continue;
+            if (!wallGrid[rr][cc]) {
+              return { x: cc * GRID_SIZE + GRID_SIZE / 2, y: rr * GRID_SIZE + GRID_SIZE / 2 };
+            }
+          }
+        }
+      }
+      return p;
+    };
+
+    const isWalkable = (p) => {
+      if (!wallGrid?.length) return true;
+      const rows = wallGrid.length;
+      const cols = wallGrid[0].length;
+      const c = Math.max(0, Math.min(cols - 1, Math.floor(p.x / GRID_SIZE)));
+      const r = Math.max(0, Math.min(rows - 1, Math.floor(p.y / GRID_SIZE)));
+      return !wallGrid[r][c];
+    };
+
+    const constrainedWalk = (position, vel, wander = 0.5) => {
+      const basePos = wallGrid ? nearestWalkablePos(position) : position;
+      const r = randomWalk(basePos, vel, wander);
+      if (!wallGrid) return r;
+      if (isWalkable(r.pos)) return r;
+      const bounce = { pos: { ...basePos }, vel: { vx: -vel.vx, vy: -vel.vy } };
+      const next = randomWalk(bounce.pos, bounce.vel, 0.2);
+      if (isWalkable(next.pos)) return next;
+      const parked = nearestWalkablePos(basePos);
+      return { pos: { ...parked }, vel: { vx: -vel.vx * 0.6, vy: -vel.vy * 0.6 } };
+    };
+
     function loop(now) {
       animRef.current = requestAnimationFrame(loop);
       if (paused || now - lastT < 50) return;
       lastT = now; tickN++;
       const s = stateRef.current;
       if (!frozen) {
-        s.agents = s.agents.map(a => { const r = randomWalk(a.position, a.vel, 0.5); return { ...a, position: r.pos, vel: r.vel }; });
+        s.agents = s.agents.map(a => { const r = constrainedWalk(a.position, a.vel, 0.5); return { ...a, position: r.pos, vel: r.vel }; });
       }
-      s.targets = s.targets.map(t => { const r = randomWalk(t.position, t.vel, 0.6); return { ...t, position: r.pos, vel: r.vel, lastSeen: Date.now() }; });
+      s.targets = s.targets.map(t => { const r = constrainedWalk(t.position, t.vel, 0.6); return { ...t, position: r.pos, vel: r.vel, lastSeen: Date.now() }; });
       const res = runPriorityAssignment(s.agents, s.targets, s.prevPrimary, s.prevSecondary, wallGrid);
       for (const [tid, aid] of Object.entries(res.primary)) {
         if (s.prevPrimary[tid] && s.prevPrimary[tid] !== aid) {
@@ -76,13 +121,13 @@ export default function App() {
       }
       s.prevPrimary = { ...res.primary }; s.prevSecondary = { ...res.secondary };
       const canvas = canvasRef.current;
-      if (canvas) drawScene(canvas, s.agents, s.targets, res, hl, Date.now(), showZones, schematicImg);
+      if (canvas) drawScene(canvas, s.agents, s.targets, res, hl, Date.now(), showZones, schematicImg, wallLayout);
       setTick(tickN); setResult(res);
       setUi({ agents: [...s.agents], targets: [...s.targets] });
     }
     animRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animRef.current);
-  }, [paused, frozen, hl, showZones, addEvent, wallGrid, schematicImg]);
+  }, [paused, frozen, hl, showZones, addEvent, wallGrid, schematicImg, wallLayout]);
 
   const onCanvasClick = e => {
     if (!stateRef.current || !canvasRef.current) return;
@@ -125,6 +170,7 @@ export default function App() {
     const img = new Image();
     img.onload = () => {
       setSchematicImg(img);
+      setWallLayout(null);
       setWallGrid(extractWallGrid(img, WW, WH));
       addEvent("🏗 Schematic loaded — wall-aware pathfinding active", "system");
     };
@@ -133,9 +179,22 @@ export default function App() {
   };
   const clearSchematic = () => {
     setSchematicImg(null);
+    setWallLayout(null);
     setWallGrid(null);
     if (stateRef.current) { stateRef.current.prevPrimary = {}; stateRef.current.prevSecondary = {}; }
     addEvent("🏗 Schematic cleared — euclidean distances restored", "system");
+  };
+
+  const addPresetWalls = () => {
+    const layout = createPresetWallLayout(WW, WH);
+    setSchematicImg(null);
+    setWallLayout(layout);
+    setWallGrid(wallLayoutToGrid(layout, WW, WH));
+    if (stateRef.current) {
+      stateRef.current.prevPrimary = {};
+      stateRef.current.prevSecondary = {};
+    }
+    addEvent("🧱 Walls added — door gaps active, A* pathfinding enabled", "system");
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -245,7 +304,7 @@ export default function App() {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
         <div>
           <div style={{ fontSize:15, fontWeight:700, letterSpacing:"0.15em", color:C.teal }}>◈ PRIORITY ASSIGNMENT ENGINE</div>
-          <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em", marginTop:2 }}>DISTANCE-BASED PRIORITY · P1 SOLID · P2 DASHED · P3 DOTTED · PROXIMITY ON HOVER</div>
+          <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em", marginTop:2 }}>DISTANCE-BASED PRIORITY</div>
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
           {[
@@ -263,6 +322,10 @@ export default function App() {
           <button onClick={spawn} style={{ background:"#180e0e", border:`1px solid #4a1010`, color:"#ff6b6b", padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊕ SPAWN</button>
           <button onClick={neutralise} style={{ background:"#0a160e", border:`1px solid #1a4020`, color:C.green, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⊘ NEUTRALISE</button>
           <button onClick={scatter} style={{ background:"#12100a", border:`1px solid #3a3010`, color:C.yellow, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>⚡ SCATTER</button>
+          <button onClick={addPresetWalls} style={{
+            background:"#13161f", border:`1px solid ${C.orange}80`, color:C.orange,
+            padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit"
+          }}>🧱 ADD WALLS</button>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleSchematicUpload} style={{ display:"none" }}/>
           <button onClick={() => fileInputRef.current?.click()} style={{
             background:"linear-gradient(135deg, #0d1c2d, #15324d)",
@@ -277,7 +340,7 @@ export default function App() {
             boxShadow:`0 0 16px ${C.teal}55`,
             fontFamily:"inherit",
           }}> LOAD SCHEMATIC</button>
-          {schematicImg && <button onClick={clearSchematic} style={{ background:"#180e0e", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
+          {(schematicImg || wallLayout) && <button onClick={clearSchematic} style={{ background:"#180e0e", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
           <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:4, padding:"6px 10px", fontSize:9, color:C.dim, display:"flex", alignItems:"center", gap:6 }}>
             <span style={{ color:paused?C.orange:C.green, animation:paused?"none":"pulse 1.5s infinite" }}>●</span>
             {String(tick).padStart(4,"0")} <span style={{ color:C.dim }}>|</span> <span style={{ color:rCount?C.yellow:C.dim }}>↩{rCount}</span>

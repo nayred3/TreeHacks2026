@@ -8,12 +8,11 @@
  *   each target chooses the closest available agent, tie-broken by earliest
  *   completion of the agent's already-assigned tasks.
  *
- * Non-euclidean (wall/path mode):
- * - Uses the legacy anti-thrash claim-based behavior.
+ * Wall/path mode:
+ * - Uses the same assignment policy; only distance metric differs (A* vs Euclidean).
  */
 
 import { computeDistanceMatrix } from "./distances.js";
-import { REASSIGN_THRESHOLD } from "./config.js";
 
 export function runPriorityAssignment(agents, targets, prevPrimary, prevSecondary, wallGrid) {
   if (!agents.length || !targets.length) {
@@ -30,13 +29,7 @@ export function runPriorityAssignment(agents, targets, prevPrimary, prevSecondar
   }
 
   const matrix = computeDistanceMatrix(agents, targets, wallGrid);
-  const { byAgent, byTarget } = matrix;
-
-  if (!wallGrid) {
-    return runEuclideanOptimalAssignment(agents, targets, matrix);
-  }
-
-  return runLegacyPriorityAssignment(agents, targets, prevPrimary, matrix);
+  return runEuclideanOptimalAssignment(agents, targets, matrix);
 }
 
 function runEuclideanOptimalAssignment(agents, targets, matrix) {
@@ -83,34 +76,12 @@ function runEuclideanOptimalAssignment(agents, targets, matrix) {
   }
 
   const assignedTargets = new Set(Object.keys(primary).map(Number));
-  let remainingTargets = targets.map((t) => t.id).filter((tid) => !assignedTargets.has(tid));
+  const remainingTargets = targets.map((t) => t.id).filter((tid) => !assignedTargets.has(tid));
 
-  // ── Phase 2: secondary round (one extra target max per agent)
-  const secondary = assignPriorityRound(remainingTargets, agents, byAgent, agentTaskLoad, agentTaskSets);
-  for (const tid of Object.keys(secondary).map(Number)) assignedTargets.add(tid);
-  remainingTargets = targets.map((t) => t.id).filter((tid) => !assignedTargets.has(tid));
-
-  // ── Phase 3+: tertiary backlog rounds until all targets are covered.
-  const tertiary = {};
-  while (remainingTargets.length > 0) {
-    const round = assignPriorityRound(remainingTargets, agents, byAgent, agentTaskLoad, agentTaskSets);
-    const assignedNow = Object.keys(round).map(Number);
-    if (!assignedNow.length) {
-      // Safety fallback: force remaining targets to nearest agent by the same tie-break rule.
-      for (const tid of remainingTargets) {
-        const fallbackAgent = pickBestAgentForTarget(tid, agents, byAgent, agentTaskLoad, null);
-        if (fallbackAgent === null) continue;
-        tertiary[tid] = fallbackAgent;
-        agentTaskLoad[fallbackAgent] += byAgent[fallbackAgent]?.[tid] ?? Infinity;
-        agentTaskSets[fallbackAgent].add(tid);
-      }
-      break;
-    }
-
-    for (const [tidStr, aid] of Object.entries(round)) tertiary[tidStr] = aid;
-    for (const tid of assignedNow) assignedTargets.add(tid);
-    remainingTargets = targets.map((t) => t.id).filter((tid) => !assignedTargets.has(tid));
-  }
+  // Secondary only when targets exceed agents.
+  const secondary = targets.length > agents.length
+    ? assignPriorityRound(remainingTargets, agents, byAgent, agentTaskLoad, agentTaskSets)
+    : {};
 
   // Per-agent top queued backup targets for UI badges/lines.
   const agentSecondary = {};
@@ -122,14 +93,8 @@ function runEuclideanOptimalAssignment(agents, targets, matrix) {
     }
   }
 
+  const tertiary = {};
   const agentTertiary = {};
-  for (const [tidStr, aid] of Object.entries(tertiary)) {
-    const tid = +tidStr;
-    const prevTid = agentTertiary[aid];
-    if (prevTid === undefined || (byAgent[aid]?.[tid] ?? Infinity) < (byAgent[aid]?.[prevTid] ?? Infinity)) {
-      agentTertiary[aid] = tid;
-    }
-  }
 
   // Annotate priority lists with role
   const agentPriorities = {};
@@ -138,110 +103,11 @@ function runEuclideanOptimalAssignment(agents, targets, matrix) {
       let role = "none";
       if (primaryAgentToTarget[a.id] === entry.targetId) role = "primary";
       else if (agentSecondary[a.id] === entry.targetId) role = "secondary";
-      else if (agentTertiary[a.id] === entry.targetId) role = "tertiary";
       return { ...entry, role };
     });
   }
 
   return { primary, secondary, tertiary, agentSecondary, agentTertiary, proximity, agentPriorities, matrix };
-}
-
-function runLegacyPriorityAssignment(agents, targets, prevPrimary, matrix) {
-  const { byAgent, byTarget } = matrix;
-
-  const priorityLists = {};
-  for (const a of agents) {
-    priorityLists[a.id] = Object.entries(byAgent[a.id] || {}).map(([tid, d], idx) => ({
-      targetId: +tid,
-      distance: d,
-      priority: idx + 1,
-    }));
-  }
-
-  const proximity = {};
-  for (const t of targets) {
-    const sorted = Object.entries(byTarget[t.id]);
-    if (sorted.length) proximity[t.id] = sorted[0][0];
-  }
-
-  const claims = {};
-  for (const a of agents) {
-    const p1 = priorityLists[a.id]?.[0];
-    if (!p1) continue;
-    if (!claims[p1.targetId]) claims[p1.targetId] = [];
-    claims[p1.targetId].push({ agentId: a.id, distance: p1.distance });
-  }
-
-  const primary = {};
-  const agentPrimaryTarget = {};
-
-  for (const [tidStr, claimList] of Object.entries(claims)) {
-    const tid = +tidStr;
-    claimList.sort((a, b) => a.distance - b.distance);
-    const winner = claimList[0];
-
-    const prevAgentId = prevPrimary[tid];
-    if (prevAgentId && prevAgentId !== winner.agentId) {
-      const prevDist = byTarget[tid]?.[prevAgentId] ?? Infinity;
-      const improvement = prevDist - winner.distance;
-      if (improvement <= REASSIGN_THRESHOLD) {
-        primary[tid] = prevAgentId;
-        agentPrimaryTarget[prevAgentId] = tid;
-        continue;
-      }
-    }
-    primary[tid] = winner.agentId;
-    agentPrimaryTarget[winner.agentId] = tid;
-  }
-
-  for (const t of targets) {
-    if (primary[t.id] !== undefined) continue;
-    for (const [aid] of Object.entries(byTarget[t.id])) {
-      if (!agentPrimaryTarget[aid]) {
-        primary[t.id] = aid;
-        agentPrimaryTarget[aid] = t.id;
-        break;
-      }
-    }
-  }
-
-  const agentSecondary = {};
-  for (const a of agents) {
-    const list = priorityLists[a.id] || [];
-    const myP1 = agentPrimaryTarget[a.id];
-    for (let i = 0; i < list.length; i++) {
-      if (list[i].targetId !== myP1) {
-        agentSecondary[a.id] = list[i].targetId;
-        break;
-      }
-    }
-  }
-
-  const secondary = {};
-  for (const [aid, tid] of Object.entries(agentSecondary)) {
-    if (secondary[tid] === undefined) secondary[tid] = aid;
-  }
-
-  const agentPriorities = {};
-  for (const a of agents) {
-    agentPriorities[a.id] = (priorityLists[a.id] || []).map((entry) => {
-      let role = "none";
-      if (primary[entry.targetId] === a.id) role = "primary";
-      else if (agentSecondary[a.id] === entry.targetId) role = "secondary";
-      return { ...entry, role };
-    });
-  }
-
-  return {
-    primary,
-    secondary,
-    tertiary: {},
-    agentSecondary,
-    agentTertiary: {},
-    proximity,
-    agentPriorities,
-    matrix,
-  };
 }
 
 function solveTopAssignments(agents, targets, byAgent, topK = 2) {

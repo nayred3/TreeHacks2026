@@ -25,7 +25,7 @@ function prepareHiDPI(canvas) {
   return ctx;
 }
 
-export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, schematicImage) {
+export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, schematicImage, wallLayout) {
   const ctx = prepareHiDPI(canvas);
   ctx.clearRect(0, 0, WW, WH);
   ctx.fillStyle = "#05080e";
@@ -36,6 +36,31 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.save();
     ctx.globalAlpha = 0.35;
     ctx.drawImage(schematicImage, 0, 0, WW, WH);
+    ctx.restore();
+  }
+
+  // Preset wall/door overlay (line segments with explicit door gaps)
+  if (wallLayout && !schematicImage) {
+    ctx.save();
+    ctx.lineCap = "round";
+
+    for (const w of wallLayout.walls || []) {
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(w.x1, w.y1);
+      ctx.lineTo(w.x2, w.y2);
+      ctx.stroke();
+    }
+
+    for (const d of wallLayout.doors || []) {
+      ctx.strokeStyle = "rgba(0,245,212,0.9)";
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      ctx.moveTo(d.x1, d.y1);
+      ctx.lineTo(d.x2, d.y2);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 

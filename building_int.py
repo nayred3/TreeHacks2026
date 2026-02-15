@@ -97,6 +97,14 @@ class WallSegment:
 
 
 @dataclass
+class DoorSegment:
+    """A walkable doorway segment in world space (metres)."""
+    x1: float; y1: float
+    x2: float; y2: float
+    layer: str = "DOORS"
+
+
+@dataclass
 class CoordTransform:
     """
     Converts between DXF file units and operational metres.
@@ -145,6 +153,7 @@ class FloorPlan:
     layers      : all layer names found in the DXF
     """
     walls:      list = field(default_factory=list)
+    doors:      list = field(default_factory=list)
     width_m:    float = 0.0
     height_m:   float = 0.0
     grid:       list  = field(default_factory=list)
@@ -190,6 +199,10 @@ class FloorPlan:
             "walls": [
                 {"x1": w.x1, "y1": w.y1, "x2": w.x2, "y2": w.y2, "layer": w.layer}
                 for w in self.walls
+            ],
+            "doors": [
+                {"x1": d.x1, "y1": d.y1, "x2": d.x2, "y2": d.y2, "layer": d.layer}
+                for d in self.doors
             ],
         }
 
@@ -433,6 +446,31 @@ def build_grid(walls: list[WallSegment], transform: CoordTransform,
     )
 
 
+def _carve_doors(fp: FloorPlan, doors: list[DoorSegment]):
+    """Open walkable door cells on top of already-rasterised walls."""
+    if not fp.grid:
+        return
+    rows = len(fp.grid)
+    cols = len(fp.grid[0])
+
+    def carve_point(x: float, y: float):
+        r, c = fp.world_to_grid(x, y)
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                rr = r + dr
+                cc = c + dc
+                if 0 <= rr < rows and 0 <= cc < cols:
+                    fp.grid[rr][cc] = 1
+
+    for d in doors:
+        dx = d.x2 - d.x1
+        dy = d.y2 - d.y1
+        steps = max(1, int(max(abs(dx), abs(dy)) / max(fp.resolution / 2.0, 1e-6)))
+        for i in range(steps + 1):
+            t = i / steps
+            carve_point(d.x1 + dx * t, d.y1 + dy * t)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # A* PATHFINDER
 # ─────────────────────────────────────────────────────────────────────────────
@@ -532,6 +570,265 @@ def compute_pathfinding_matrix(floor_plan: FloorPlan,
         by_target[str(t["id"])] = dict(sorted(row.items(), key=lambda kv: kv[1]))
 
     return {"by_target": by_target, "by_agent": by_agent}
+
+
+def build_arbitrary_single_floor(resolution: float = 0.4) -> FloorPlan:
+    """
+    Build an arbitrary single-floor layout with explicit walls and doors.
+    Doors are openings in walls (walkable) and are also tracked for map rendering.
+    """
+    W, H = 38.0, 24.0
+    walls: list[WallSegment] = []
+    doors: list[DoorSegment] = []
+
+    # Outer shell walls (continuous) + door segments on those walls.
+    walls += [
+        WallSegment(0, 0, W, 0),
+        WallSegment(0, H, W, H),
+        WallSegment(0, 0, 0, H),
+        WallSegment(W, 0, W, H),
+    ]
+    doors += [
+        DoorSegment(5, 0, 8, 0),
+        DoorSegment(17, H, 20, H),
+        DoorSegment(0, 9, 0, 12),
+    ]
+
+    # Corridor wall with doors on the wall.
+    walls += [WallSegment(0, 10, W, 10)]
+    doors += [DoorSegment(7, 10, 10, 10), DoorSegment(18, 10, 21, 10), DoorSegment(29, 10, 32, 10)]
+
+    # Vertical room dividers with doors on the wall.
+    walls += [WallSegment(10, 10, 10, H), WallSegment(20, 10, 20, H), WallSegment(30, 10, 30, H)]
+    doors += [DoorSegment(10, 14, 10, 17), DoorSegment(20, 12, 20, 15), DoorSegment(30, 16, 30, 19)]
+
+    # Lower area partial barriers.
+    walls += [WallSegment(14, 0, 14, 5), WallSegment(24, 0, 24, 6)]
+
+    fp = build_grid(walls, CoordTransform(scale=1.0), resolution=resolution)
+    # Carve door openings directly into wall raster.
+    _carve_doors(fp, doors)
+    fp.doors = doors
+    return fp
+
+
+def _solve_top_assignments(agents: list[dict], targets: list[dict], by_agent: dict, top_k: int = 2) -> list[dict]:
+    """
+    Return up to top_k minimal-cost assignments of agent->target.
+    Coverage rules:
+      - agents >= targets: target coverage is mandatory.
+      - targets > agents: one primary target per agent (target uniqueness enforced).
+    """
+    agent_ids = [a["id"] for a in agents]
+    target_ids = [int(t["id"]) for t in targets]
+    more_agents_than_targets = len(agent_ids) >= len(target_ids)
+
+    rankings: dict[str, list[int]] = {}
+    for aid in agent_ids:
+        pairs = []
+        row = by_agent.get(aid, {})
+        for tid in target_ids:
+            d = row.get(str(tid), math.inf)
+            if math.isfinite(d):
+                pairs.append((tid, d))
+        rankings[aid] = [tid for tid, _ in sorted(pairs, key=lambda x: x[1])]
+
+    if not target_ids or not agent_ids:
+        return []
+
+    # Avoid bit-shift overflow; fallback to greedy.
+    if len(target_ids) > 30:
+        greedy = {}
+        for aid in agent_ids:
+            if rankings[aid]:
+                greedy[aid] = rankings[aid][0]
+        return [{"cost": 0.0, "map": greedy}]
+
+    target_index = {tid: i for i, tid in enumerate(target_ids)}
+    best: list[dict] = []
+    used_targets = set()
+    current: dict[str, int] = {}
+
+    def consider(cost: float):
+        key = tuple((aid, current.get(aid)) for aid in agent_ids)
+        if any(b["key"] == key for b in best):
+            return
+        best.append({"key": key, "cost": cost, "map": dict(current)})
+        best.sort(key=lambda x: x["cost"])
+        if len(best) > top_k:
+            best.pop()
+
+    def dfs(agent_pos: int, cost: float, coverage_mask: int):
+        if best and len(best) >= top_k and cost >= best[-1]["cost"]:
+            return
+        if agent_pos == len(agent_ids):
+            if more_agents_than_targets:
+                full_mask = (1 << len(target_ids)) - 1
+                if coverage_mask != full_mask:
+                    return
+            consider(cost)
+            return
+
+        aid = agent_ids[agent_pos]
+        for tid in rankings[aid]:
+            if not more_agents_than_targets and tid in used_targets:
+                continue
+            dist = by_agent.get(aid, {}).get(str(tid), math.inf)
+            if not math.isfinite(dist):
+                continue
+            current[aid] = tid
+            next_mask = coverage_mask | (1 << target_index[tid])
+            if not more_agents_than_targets:
+                used_targets.add(tid)
+            dfs(agent_pos + 1, cost + dist, next_mask)
+            if not more_agents_than_targets:
+                used_targets.remove(tid)
+            del current[aid]
+
+    dfs(0, 0.0, 0)
+    return best
+
+
+def compute_astar_assignments(floor_plan: FloorPlan, agents: list[dict], targets: list[dict]) -> dict:
+    """
+    A* distance-based assignment with primary/secondary rules.
+    """
+    matrix = compute_pathfinding_matrix(floor_plan, agents, targets)
+    by_agent = matrix["by_agent"]
+
+    solutions = _solve_top_assignments(agents, targets, by_agent, top_k=2)
+    agent_ids = [a["id"] for a in agents]
+    target_ids = [int(t["id"]) for t in targets]
+
+    # Primary mapping (agent -> target), fallback to nearest if solver is empty.
+    primary_agent_to_target: dict[str, int] = {}
+    if solutions:
+        primary_agent_to_target = dict(solutions[0]["map"])
+    else:
+        for aid in agent_ids:
+            row = by_agent.get(aid, {})
+            best_tid = None
+            best_dist = math.inf
+            for tid in target_ids:
+                d = row.get(str(tid), math.inf)
+                if d < best_dist:
+                    best_dist = d
+                    best_tid = tid
+            if best_tid is not None:
+                primary_agent_to_target[aid] = best_tid
+
+    # Target -> primary agent (choose closest if many agents share target).
+    primary: dict[int, str] = {}
+    for aid, tid in primary_agent_to_target.items():
+        d = by_agent.get(aid, {}).get(str(tid), math.inf)
+        prev = primary.get(tid)
+        if prev is None or d < by_agent.get(prev, {}).get(str(tid), math.inf):
+            primary[tid] = aid
+
+    # Secondary only when targets exceed agents.
+    secondary: dict[int, str] = {}
+    if len(target_ids) > len(agent_ids) and len(solutions) > 1:
+        second_map = dict(solutions[1]["map"])
+        for aid, tid in second_map.items():
+            if tid == primary_agent_to_target.get(aid):
+                continue
+            d = by_agent.get(aid, {}).get(str(tid), math.inf)
+            prev = secondary.get(tid)
+            if prev is None or d < by_agent.get(prev, {}).get(str(tid), math.inf):
+                secondary[tid] = aid
+
+    if len(target_ids) > len(agent_ids):
+        # Coverage completion for extra targets:
+        # choose closest agent; tie-break by earliest completion of primary+queued secondaries.
+        agent_load = {
+            aid: by_agent.get(aid, {}).get(str(primary_agent_to_target.get(aid, -1)), math.inf)
+            for aid in agent_ids
+        }
+        for aid, load in list(agent_load.items()):
+            if not math.isfinite(load):
+                agent_load[aid] = 0.0
+        for tid, aid in secondary.items():
+            d = by_agent.get(aid, {}).get(str(tid), math.inf)
+            if math.isfinite(d):
+                agent_load[aid] += d
+
+        covered = set(primary.keys()) | set(secondary.keys())
+        for tid in target_ids:
+            if tid in covered:
+                continue
+            best_aid = None
+            best_dist = math.inf
+            best_load = math.inf
+            for aid in agent_ids:
+                d = by_agent.get(aid, {}).get(str(tid), math.inf)
+                if not math.isfinite(d):
+                    continue
+                load = agent_load.get(aid, 0.0)
+                if d < best_dist or (d == best_dist and load < best_load):
+                    best_aid = aid
+                    best_dist = d
+                    best_load = load
+            if best_aid is not None:
+                secondary[tid] = best_aid
+                agent_load[best_aid] = agent_load.get(best_aid, 0.0) + best_dist
+
+    # Per-agent secondary list (can include multiple targets if targets > agents).
+    agent_secondary: dict[str, list[int]] = {aid: [] for aid in agent_ids}
+    for tid, aid in secondary.items():
+        agent_secondary[aid].append(tid)
+    for aid in agent_ids:
+        agent_secondary[aid].sort(key=lambda tid: by_agent.get(aid, {}).get(str(tid), math.inf))
+
+    unassigned = [tid for tid in target_ids if tid not in primary and tid not in secondary]
+    return {
+        "matrix": matrix,
+        "primary": {str(tid): aid for tid, aid in primary.items()},
+        "secondary": {str(tid): aid for tid, aid in secondary.items()},
+        "agent_primary": {aid: int(tid) for aid, tid in primary_agent_to_target.items()},
+        "agent_secondary": {aid: tids for aid, tids in agent_secondary.items()},
+        "unassigned_targets": unassigned,
+    }
+
+
+def render_ascii_map(floor_plan: FloorPlan, agents: list[dict], targets: list[dict], assignments: Optional[dict] = None):
+    """Render a compact text map with walls (#), doors (D), agents, and targets."""
+    rows = len(floor_plan.grid)
+    cols = len(floor_plan.grid[0]) if rows else 0
+    canvas = [["." if floor_plan.grid[r][c] == 1 else "#" for c in range(cols)] for r in range(rows)]
+
+    # Mark doors as walkable doorway cells.
+    for d in floor_plan.doors:
+        x_mid = (d.x1 + d.x2) / 2.0
+        y_mid = (d.y1 + d.y2) / 2.0
+        r, c = floor_plan.world_to_grid(x_mid, y_mid)
+        if 0 <= r < rows and 0 <= c < cols:
+            canvas[r][c] = "D"
+
+    # Mark targets
+    for t in targets:
+        r, c = floor_plan.world_to_grid(t["position"]["x"], t["position"]["y"])
+        mark = str(t["id"])[-1]
+        if 0 <= r < rows and 0 <= c < cols:
+            canvas[r][c] = mark
+
+    # Mark agents
+    for a in agents:
+        r, c = floor_plan.world_to_grid(a["position"]["x"], a["position"]["y"])
+        mark = a["id"][0].upper()
+        if 0 <= r < rows and 0 <= c < cols:
+            canvas[r][c] = mark
+
+    print("\n[Map Demo — single floor]")
+    print("Legend: # wall, . walkable, D door, A/B/C/D agents, 1..9 targets")
+    for r in range(rows - 1, -1, -1):
+        print("".join(canvas[r]))
+
+    if assignments:
+        print("\n[Assignments]")
+        for tid, aid in sorted(assignments["primary"].items(), key=lambda kv: int(kv[0])):
+            print(f"  Target {tid} -> Primary {aid}")
+        for tid, aid in sorted(assignments["secondary"].items(), key=lambda kv: int(kv[0])):
+            print(f"  Target {tid} -> Secondary {aid}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -745,6 +1042,54 @@ def _run_demo(dxf_path: str):
     print("\n" + "="*65)
 
 
+def _run_map_demo():
+    """Arbitrary single-floor map demo with walls, doors, A* assignment rules."""
+    print("\n" + "=" * 70)
+    print("  MAP DEMO — Arbitrary Walls/Doors + A* Primary/Secondary Assignment")
+    print("=" * 70)
+
+    fp = build_arbitrary_single_floor(resolution=0.4)
+    agents = [
+        {"id": "Alice",   "position": {"x": 2.0,  "y": 2.0}},
+        {"id": "Bob",     "position": {"x": 34.0, "y": 2.0}},
+        {"id": "Charlie", "position": {"x": 3.0,  "y": 19.0}},
+        {"id": "Diana",   "position": {"x": 27.0, "y": 19.0}},
+    ]
+    targets = [
+        {"id": 1, "position": {"x": 7.0,  "y": 18.0}},
+        {"id": 2, "position": {"x": 18.0, "y": 18.0}},
+        {"id": 3, "position": {"x": 32.0, "y": 18.0}},
+        {"id": 4, "position": {"x": 12.0, "y": 5.0}},
+        {"id": 5, "position": {"x": 22.0, "y": 4.0}},
+        {"id": 6, "position": {"x": 4.0,  "y": 11.0}},
+    ]
+
+    assignments = compute_astar_assignments(fp, agents, targets)
+    render_ascii_map(fp, agents, targets, assignments)
+
+    print("\n[Distance Matrix — A* walkable metres]")
+    matrix = assignments["matrix"]["by_target"]
+    agent_ids = [a["id"] for a in agents]
+    print(f"{'':>10}" + "".join(f"{a:>10}" for a in agent_ids))
+    for tid in sorted(matrix.keys(), key=int):
+        row = matrix[tid]
+        cells = "".join(
+            f"{'∞':>10}" if row.get(a, math.inf) == math.inf else f"{row.get(a, math.inf):>10.1f}"
+            for a in agent_ids
+        )
+        print(f"Target  {tid:>2}{cells}")
+
+    print("\n[Per-agent task queue]")
+    for aid in agent_ids:
+        p1 = assignments["agent_primary"].get(aid)
+        p2s = assignments["agent_secondary"].get(aid, [])
+        print(f"  {aid:8s} P1={p1}  P2={p2s if p2s else '[]'}")
+
+    print("\n[JSON payload]")
+    print(json.dumps(assignments, indent=2))
+    print("=" * 70 + "\n")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # CLI
 # ─────────────────────────────────────────────────────────────────────────────
@@ -759,6 +1104,8 @@ if __name__ == "__main__":
                         help="Output path for grid JSON (default: grid.json)")
     parser.add_argument("--demo",     metavar="INPUT.dxf",
                         help="Run full demo: parse DXF + compute pathfinding matrix")
+    parser.add_argument("--map-demo", action="store_true",
+                        help="Run arbitrary map demo with walls/doors + A* assignment")
     parser.add_argument("--layers",   metavar="LAYER1,LAYER2",
                         help="Comma-separated wall layer names to extract")
     parser.add_argument("--scale",    type=float, default=1.0,
@@ -780,7 +1127,9 @@ if __name__ == "__main__":
     if args.demo:
         _run_demo(args.demo)
 
-    if not any([args.generate, args.parse, args.demo]):
-        print("Generating sample DXF and running demo…")
-        generate_sample_dxf("sample_floor.dxf")
-        _run_demo("sample_floor.dxf")
+    if args.map_demo:
+        _run_map_demo()
+
+    if not any([args.generate, args.parse, args.demo, args.map_demo]):
+        print("Running arbitrary map demo (walls + doors + A* assignment)…")
+        _run_map_demo()
