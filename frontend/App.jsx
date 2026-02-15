@@ -4,7 +4,7 @@ import { euclidean, randomWalk } from "./utils.js";
 import { runPriorityAssignment } from "./assignment.js";
 import { drawScene } from "./canvas.js";
 import { extractWallGrid, createPresetWallLayout, wallLayoutToGrid, gridToWallLayout, WALL_LAYOUT_OPTIONS, GRID_SIZE } from "./pathfinding.js";
-import { fetchFusionData } from "./liveDemo.js";
+import { fetchFusionData, frontendPosToFeet } from "./liveDemo.js";
 
 /** Embeds MJPEG stream; falls back to placeholder if stream unreachable. */
 function CameraStream({ agentId, streamUrl, fallback }) {
@@ -846,7 +846,12 @@ export default function App() {
                     <div>
                       <div style={{ fontSize:11, color:C.text, marginBottom:2 }}>{agent.id}</div>
                       <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Position</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)})</div>
+                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>
+                        {isLiveDemo ? (() => {
+                          const { x_ft, y_ft } = frontendPosToFeet(agent.position.x, agent.position.y);
+                          return `(${x_ft.toFixed(2)}, ${y_ft.toFixed(2)}) ft`;
+                        })() : `(${agent.position.x.toFixed(0)}, ${agent.position.y.toFixed(0)})`}
+                      </div>
                       <div style={{ fontSize:10, color:C.dim, marginTop:4, marginBottom:2 }}>Camera angle</div>
                       <div style={{ fontSize:11, color:C.cyan, fontWeight:600 }}>
                         {agent.headingFromNorth != null

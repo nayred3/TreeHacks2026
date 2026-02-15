@@ -30,6 +30,13 @@ function feetToFrontendPos(x_ft, y_ft) {
   return { x: x_cm, y: y_cm };
 }
 
+/** Convert frontend position (cm, center origin) to schematic feet (from top-left). */
+export function frontendPosToFeet(x_cm, y_cm) {
+  const x_ft = (x_cm + FRONTEND_WIDTH_CM / 2) / SX;
+  const y_ft = (y_cm + FRONTEND_HEIGHT_CM / 2) / SY;
+  return { x_ft, y_ft };
+}
+
 /** Map top (upward direction) = 174° south of geographic north. Phone/camera headings are degrees from perfect north. */
 export const MAP_TOP_BEARING = 174;
 
