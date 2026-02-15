@@ -279,39 +279,41 @@ class LiveFusionServer:
 
     def _on_camera_state(self, msg: dict) -> None:
         """Handle camera_state message from iPhone (position_receiver format).
-        Updates position/heading of an existing camera without overwriting
-        image dimensions or HFOV (those come from camera_info)."""
+        Updates position of an existing camera without overwriting heading,
+        image dimensions, or HFOV.  Heading from the phone's compass is
+        unreliable indoors; the authoritative heading comes from camera_info
+        (which uses the manual --yaw-deg value set in camera.py)."""
         cam_id = msg.get("camera_id", "")
         if not cam_id:
             return
         position = msg.get("position", [0, 0])
-        heading = msg.get("heading", 0)
         cc = self._cameras.get(cam_id)
         if cc is not None:
-            # Update position and heading on existing config
+            # Update position only — keep heading from camera_info
             self._cameras[cam_id] = CameraConfig(
                 camera_id=cam_id,
                 x=float(position[0]),
                 y=float(position[1]),
-                heading_deg=float(heading),
+                heading_deg=cc.heading_deg,       # preserve manual heading
                 hfov_deg=cc.hfov_deg,
                 image_width=cc.image_width,
                 image_height=cc.image_height,
             )
         else:
-            # Camera not yet registered via camera_info — create with defaults
+            # Camera not yet registered via camera_info — create with defaults.
+            # Use 0 heading as placeholder; real heading arrives with camera_info.
             self._cameras[cam_id] = CameraConfig(
                 camera_id=cam_id,
                 x=float(position[0]),
                 y=float(position[1]),
-                heading_deg=float(heading),
+                heading_deg=0.0,                  # placeholder until camera_info arrives
                 hfov_deg=70.0,
                 image_width=640,
                 image_height=360,
             )
             print(
                 f"[CAMERA] Registered '{cam_id}' from position update at "
-                f"({position[0]:.1f}, {position[1]:.1f}) heading={heading:.0f}\u00b0"
+                f"({position[0]:.1f}, {position[1]:.1f}) (heading pending camera_info)"
             )
 
     def _on_tracks(self, msg: dict) -> None:
