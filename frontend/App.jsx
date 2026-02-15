@@ -185,7 +185,7 @@ export default function App() {
     const LD1_BOB_START = feetToFrontendPos(6, 5);
     const LD1_BOB_GOAL = feetToFrontendPos(6, 15);
     const LD1_TARGET_POS = feetToFrontendPos(38, 20);
-    const LD1_ALICE_SPEED = 45;  // cm per sec (human walking pace)
+    const LD1_ALICE_SPEED = 65;  // cm per sec (Alice a bit faster)
     const LD1_BOB_SPEED = 45;
     const LD1_ACCEL = 60;        // cm/s² for Live Demo A & 2
     const LD1_MAX_SPEED = 70;
@@ -296,13 +296,13 @@ export default function App() {
           script.aliceVel = { vx: 0, vy: 0 };
         } else {
           const ux = dist > 0.1 ? dx / dist : 0, uy = dist > 0.1 ? dy / dist : 0;
-          script.aliceVel.vx += ux * LD1_ACCEL * dtSec;
-          script.aliceVel.vy += uy * LD1_ACCEL * dtSec;
+          script.aliceVel.vx += ux * LD2_ALICE_ACCEL * dtSec;
+          script.aliceVel.vy += uy * LD2_ALICE_ACCEL * dtSec;
           let speed = Math.hypot(script.aliceVel.vx, script.aliceVel.vy);
-          if (speed > LD1_MAX_SPEED) {
-            script.aliceVel.vx *= LD1_MAX_SPEED / speed;
-            script.aliceVel.vy *= LD1_MAX_SPEED / speed;
-            speed = LD1_MAX_SPEED;
+          if (speed > LD2_ALICE_MAX_SPEED) {
+            script.aliceVel.vx *= LD2_ALICE_MAX_SPEED / speed;
+            script.aliceVel.vy *= LD2_ALICE_MAX_SPEED / speed;
+            speed = LD2_ALICE_MAX_SPEED;
           }
           const step = Math.min(speed * dtSec, dist);
           alice.position.x += (dx / dist) * step;
@@ -358,6 +358,8 @@ export default function App() {
     }
 
     // Live Demo 2 waypoints (feet)
+    const LD2_ALICE_ACCEL = 85;   // Alice a bit faster in Demo 2 & A
+    const LD2_ALICE_MAX_SPEED = 95;
     const LD2_ALICE_START = feetToFrontendPos(6, 19);
     const LD2_ALICE_GOAL = feetToFrontendPos(24, 19);
     const LD2_BOB_START = feetToFrontendPos(44, 7);
@@ -380,13 +382,13 @@ export default function App() {
           script.aliceVel = { vx: 0, vy: 0 };
         } else {
           const ux = dist > 0.1 ? dx / dist : 0, uy = dist > 0.1 ? dy / dist : 0;
-          script.aliceVel.vx += ux * LD1_ACCEL * dtSec;
-          script.aliceVel.vy += uy * LD1_ACCEL * dtSec;
+          script.aliceVel.vx += ux * LD2_ALICE_ACCEL * dtSec;
+          script.aliceVel.vy += uy * LD2_ALICE_ACCEL * dtSec;
           let speed = Math.hypot(script.aliceVel.vx, script.aliceVel.vy);
-          if (speed > LD1_MAX_SPEED) {
-            script.aliceVel.vx *= LD1_MAX_SPEED / speed;
-            script.aliceVel.vy *= LD1_MAX_SPEED / speed;
-            speed = LD1_MAX_SPEED;
+          if (speed > LD2_ALICE_MAX_SPEED) {
+            script.aliceVel.vx *= LD2_ALICE_MAX_SPEED / speed;
+            script.aliceVel.vy *= LD2_ALICE_MAX_SPEED / speed;
+            speed = LD2_ALICE_MAX_SPEED;
           }
           const step = Math.min(speed * dtSec, dist);
           alice.position.x += (dx / dist) * step;
