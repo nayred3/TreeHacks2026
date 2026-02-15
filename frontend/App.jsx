@@ -319,14 +319,15 @@ export default function App() {
   );
 
   const C = {
-    bg:"#080a12", panel:"#0f1420", border:"#2a2d45",
-    text:"#e8ecf4", dim:"#94a3b8", bright:"#f1f5f9",
+    bg:"#0a0c18", panel:"#0f1326", border:"#1e2a4a",
+    text:"#e8ecf4", dim:"#8b9dc3", bright:"#f1f5f9",
     cyan:"#38bdf8", gold:"#fbbf24", teal:"#2dd4bf",
-    green:"#34d399", red:"#f87171", orange:"#fb923c", yellow:"#fbbf24", purple:"#a78bfa", magenta:"#f472b6",
-    gradientBg:"linear-gradient(135deg, #0a0d18 0%, #12162a 40%, #0d1018 100%)",
-    gradientPanel:"linear-gradient(165deg, rgba(26,30,55,0.95) 0%, rgba(15,18,35,0.98) 50%, rgba(10,12,25,0.99) 100%)",
-    gradientOmbre:"linear-gradient(180deg, rgba(184,90,40,0.25) 0%, rgba(251,191,36,0.12) 50%, rgba(56,189,248,0.08) 100%)",
-    gradientPurple:"linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(139,92,246,0.12) 100%)",
+    green:"#22c55e", red:"#f87171", orange:"#f59e0b", yellow:"#fbbf24", purple:"#6366f1", magenta:"#f472b6",
+    accent:"#4f7cff",
+    gradientBg:"linear-gradient(135deg, #0a0c18 0%, #0f1428 30%, #0a0e1e 70%, #080c18 100%)",
+    gradientPanel:"linear-gradient(165deg, rgba(15,20,45,0.97) 0%, rgba(12,18,40,0.98) 50%, rgba(10,14,35,0.99) 100%)",
+    gradientOmbre:"linear-gradient(180deg, rgba(79,124,255,0.08) 0%, rgba(56,189,248,0.05) 50%, rgba(79,124,255,0.03) 100%)",
+    gradientAccent:"linear-gradient(135deg, rgba(79,124,255,0.28) 0%, rgba(99,102,241,0.14) 100%)",
   };
 
   const TabBtn = ({ id, label }) => (
@@ -342,14 +343,14 @@ export default function App() {
         }
       }}
       style={{
-      background: tab === id ? C.gradientPurple : "transparent",
-      border: `1px solid ${tab === id ? C.border : "transparent"}`,
+      background: tab === id ? C.gradientAccent : "transparent",
+      border: `1px solid ${tab === id ? C.accent + "50" : "transparent"}`,
       borderBottom: tab === id ? `1px solid transparent` : `1px solid ${C.border}`,
       color: tab === id ? C.bright : C.dim, padding: "5px 12px", cursor: "pointer",
       fontSize: 11, fontFamily: "inherit", letterSpacing: "0.04em",
       borderRadius: "4px 4px 0 0", marginBottom: -1, transition: "all 0.15s",
       position: "relative", zIndex: 8, pointerEvents: "auto",
-      boxShadow: tab === id ? "0 -2px 8px rgba(99,102,241,0.15)" : "none",
+      boxShadow: tab === id ? "0 -2px 10px rgba(79,124,255,0.2)" : "none",
     }}
     >{label}</button>
   );
@@ -406,14 +407,14 @@ export default function App() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily:"'Inter','Segoe UI',system-ui,-apple-system,sans-serif", background:C.gradientBg, minHeight:"100vh", display:"flex", flexDirection:"column", color:C.text, padding:14, boxSizing:"border-box" }}>
+    <div style={{ fontFamily:"'DM Sans','Inter','Segoe UI',system-ui,-apple-system,sans-serif", background:C.gradientBg, minHeight:"100vh", display:"flex", flexDirection:"column", color:C.text, padding:14, boxSizing:"border-box" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
         * { box-sizing:border-box; }
         ::-webkit-scrollbar { width:6px; height:6px; }
-        ::-webkit-scrollbar-track { background: linear-gradient(180deg, #0d1018, #12162a); }
-        ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #4b4b6b 0%, #6366f1 50%, #3b3d5c 100%); border-radius:4px; }
-        ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #6366f1 0%, #818cf8 100%); }
+        ::-webkit-scrollbar-track { background: linear-gradient(180deg, #0a0c18, #0f1326); }
+        ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #2a3a5a 0%, #4f7cff 50%, #1e2a4a 100%); border-radius:4px; }
+        ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #4f7cff 0%, #60a5fa 100%); }
         @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
         @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.45} }
         button:hover { filter:brightness(1.12); }
@@ -422,7 +423,7 @@ export default function App() {
       {/* ── Header ── */}
       <div style={{ flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
         <div>
-          <div style={{ fontSize:20, fontWeight:600, letterSpacing:"0.05em", background:"linear-gradient(90deg, #38bdf8 0%, #818cf8 50%, #a78bfa 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>HIVESIGHT</div>
+          <div style={{ fontSize:20, fontWeight:600, letterSpacing:"0.05em", background:"linear-gradient(90deg, #60a5fa 0%, #4f7cff 45%, #38bdf8 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>HIVESIGHT</div>
           <div style={{ fontSize:16, color:C.dim, letterSpacing:"0.04em", marginTop:2 }}>Real-Time Multi-Camera Spatial Intelligence</div>
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
@@ -434,10 +435,10 @@ export default function App() {
                 { label: "◎ ZONES", onClick: () => setZones(z=>!z), active: showZones, ac: C.cyan },
               ].map(b => (
                 <button key={b.label} onClick={b.onClick} style={{
-                  background: b.active ? "linear-gradient(135deg, rgba(56,189,248,0.22) 0%, rgba(99,102,241,0.12) 100%)" : C.panel,
-                  border: `1px solid ${b.active ? b.ac : C.border}`,
+                  background: b.active ? "linear-gradient(135deg, rgba(79,124,255,0.2) 0%, rgba(56,189,248,0.12) 100%)" : C.panel,
+                  border: `1px solid ${b.active ? b.ac + "80" : C.border}`,
                   color: b.active ? b.ac : C.dim,
-                  padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit", boxShadow: b.active ? "0 0 8px rgba(56,189,248,0.2)" : "none",
+                  padding:"6px 12px", borderRadius:6, cursor:"pointer", fontSize:11, fontFamily:"inherit", boxShadow: b.active ? "0 0 10px rgba(79,124,255,0.25)" : "none",
                 }}>{b.label}</button>
               ))}
               <button onClick={spawn} style={{ background:"#2d0a0a", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>⊕ SPAWN</button>
@@ -446,8 +447,8 @@ export default function App() {
             </>
           )}
           <button onClick={() => { setIsLiveDemo(prev => !prev); if (!isLiveDemo) addPresetWalls("dual-vertical"); }} style={{
-            background: isLiveDemo ? "linear-gradient(135deg, rgba(56,189,248,0.3) 0%, rgba(99,102,241,0.2) 100%)" : C.panel, border:`1px solid ${isLiveDemo ? "#38bdf8" : C.border}`, color:C.cyan,
-            padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit", boxShadow: isLiveDemo ? "0 0 12px rgba(56,189,248,0.25)" : "none",
+            background: isLiveDemo ? "linear-gradient(135deg, rgba(79,124,255,0.28) 0%, rgba(56,189,248,0.18) 100%)" : C.panel, border:`1px solid ${isLiveDemo ? C.accent + "99" : C.border}`, color:C.cyan,
+            padding:"6px 12px", borderRadius:6, cursor:"pointer", fontSize:11, fontFamily:"inherit", boxShadow: isLiveDemo ? "0 0 14px rgba(79,124,255,0.3)" : "none",
           }}>{isLiveDemo ? "LIVE DEMO ON" : "LIVE DEMO"}</button>
           <div ref={wallsDropdownRef} style={{ position:"relative" }}>
             <button onClick={() => setWallsDropdownOpen(o => !o)} style={{
@@ -475,8 +476,8 @@ export default function App() {
           </div>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleSchematicUpload} style={{ display:"none" }}/>
           <button onClick={() => fileInputRef.current?.click()} style={{
-            background:"linear-gradient(135deg, rgba(56,189,248,0.2) 0%, rgba(99,102,241,0.15) 50%, rgba(45,212,191,0.12) 100%)",
-            border:"1px solid rgba(99,102,241,0.5)",
+            background:"linear-gradient(135deg, rgba(79,124,255,0.22) 0%, rgba(56,189,248,0.14) 50%, rgba(45,212,191,0.08) 100%)",
+            border:"1px solid rgba(79,124,255,0.5)",
             color:C.cyan,
             padding:"8px 16px",
             borderRadius:8,
@@ -484,7 +485,7 @@ export default function App() {
             fontSize:11,
             fontWeight:600,
             letterSpacing:"0.05em",
-            boxShadow:"0 0 16px rgba(99,102,241,0.2)",
+            boxShadow:"0 0 18px rgba(79,124,255,0.25)",
             fontFamily:"inherit",
           }}> LOAD SCHEMATIC</button>
           {(wallLayout || wallGrid) && <button onClick={clearSchematic} style={{ background:"#2d0a0a", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
@@ -492,7 +493,7 @@ export default function App() {
       </div>
 
       {/* ── Line Legend ── */}
-      <div style={{ flexShrink:0, display:"flex", gap:14, marginBottom:10, padding:"10px 14px", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:8, flexWrap:"wrap", alignItems:"center", boxShadow:"0 2px 8px rgba(0,0,0,0.3)" }}>
+        <div style={{ flexShrink:0, display:"flex", gap:14, marginBottom:10, padding:"10px 14px", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:8, flexWrap:"wrap", alignItems:"center", boxShadow:"0 2px 12px rgba(0,0,0,0.35), 0 0 0 1px rgba(79,124,255,0.06)" }}>
         <span style={{ fontSize:11, color:C.dim, letterSpacing:"0.05em" }}>LINE KEY:</span>
           {[
             { stroke:C.text, dash:"", w:2.5,  label:"P1 Primary Target" },
@@ -526,8 +527,8 @@ export default function App() {
           {/* Live map */}
           <div>
             <canvas ref={canvasRef} onClick={onCanvasClick}
-              style={{ display:"block", width:WW, height:WH, border:`1px solid ${C.border}`, borderRadius:6, cursor:"crosshair", boxShadow:"0 0 24px rgba(99,102,241,0.1)" }}/>
-            <div style={{ display:"flex", gap:10, marginTop:8, padding:"10px 12px", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:8, flexWrap:"wrap", boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}>
+              style={{ display:"block", width:WW, height:WH, border:`1px solid ${C.border}`, borderRadius:8, cursor:"crosshair", boxShadow:"0 0 28px rgba(79,124,255,0.12), inset 0 0 0 1px rgba(255,255,255,0.02)" }}/>
+            <div style={{ display:"flex", gap:10, marginTop:8, padding:"10px 12px", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:8, flexWrap:"wrap", boxShadow:"0 2px 10px rgba(0,0,0,0.3), 0 0 0 1px rgba(79,124,255,0.05)" }}>
               <span style={{ fontSize:11, color:C.dim }}>CLICK TO HIGHLIGHT:</span>
               {agents.map(a => (
                 <div key={a.id} onClick={() => setHL(h => h === a.id ? null : a.id)}
@@ -544,7 +545,7 @@ export default function App() {
           <div style={{ width:WW + 24, display:"flex", flexDirection:"column", gap:0 }}>
 
           {/* Summary row */}
-          <div style={{ display:"flex", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:"8px 8px 0 0", borderBottom:"none", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+          <div style={{ display:"flex", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:"8px 8px 0 0", borderBottom:"none", boxShadow:"inset 0 1px 0 rgba(79,124,255,0.06), 0 0 0 1px rgba(79,124,255,0.04)" }}>
             {[
               { label:"P1 ASSIGNED",  val:Object.keys(result.primary).length,   col:C.green },
               { label:"P2 COVERAGE",  val:Object.keys(result.secondary).length,  col:C.gold },
@@ -568,7 +569,7 @@ export default function App() {
           </div>
 
           {/* Tab body */}
-          <div style={{ background:C.gradientPanel, border:`1px solid ${C.border}`, borderTop:"none", borderRadius:"0 0 8px 8px", padding:12, minHeight:200, maxHeight:260, overflow:"auto", position:"relative", zIndex:1, boxShadow:"0 4px 12px rgba(0,0,0,0.25)" }}>
+          <div style={{ background:C.gradientPanel, border:`1px solid ${C.border}`, borderTop:"none", borderRadius:"0 0 8px 8px", padding:12, minHeight:200, maxHeight:260, overflow:"auto", position:"relative", zIndex:1, boxShadow:"0 4px 16px rgba(0,0,0,0.3), 0 0 0 1px rgba(79,124,255,0.04)" }}>
 
             {/* PRIORITY TAB */}
             {tab === "priority" && (
@@ -584,7 +585,7 @@ export default function App() {
                     <div key={agent.id} onClick={() => setHL(h => h === agent.id ? null : agent.id)}
                       style={{ marginBottom:8, padding:"8px 10px", borderRadius:5, cursor:"pointer",
                         border:`1px solid ${isHl?color:C.border}`,
-                        background: isHl ? C.gradientPurple : C.bg,
+                        background: isHl ? C.gradientAccent : C.bg,
                         boxShadow: isHl?`0 0 12px ${color}30`:"none", transition:"all 0.2s" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
                         <div style={{ width:9, height:9, borderRadius:"50%", background:color, boxShadow:`0 0 6px ${color}` }}/>
@@ -651,8 +652,8 @@ export default function App() {
                     { id:"prox", lbl:"PROX ONLY" },
                   ].map((b) => (
                     <button key={b.id} onClick={() => setMatrixFocus(b.id)} style={{
-                      background: matrixFocus === b.id ? "rgba(56,189,248,0.12)" : C.bg,
-                      border:`1px solid ${matrixFocus === b.id ? C.cyan : C.border}`,
+                      background: matrixFocus === b.id ? "rgba(79,124,255,0.14)" : C.bg,
+                      border:`1px solid ${matrixFocus === b.id ? C.accent + "70" : C.border}`,
                       color: matrixFocus === b.id ? C.cyan : C.dim,
                       padding:"4px 10px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
                     }}>{b.lbl}</button>
@@ -675,7 +676,7 @@ export default function App() {
                       const terAgent  = result.tertiary[targetId];
                       return (
                         <tr key={targetId}
-                          style={{ background:hl===`t${targetId}`?"rgba(56,189,248,0.08)":"transparent", cursor:"pointer" }}
+                          style={{ background:hl===`t${targetId}`?"rgba(79,124,255,0.1)":"transparent", cursor:"pointer" }}
                           onClick={() => setHL(h => h===`t${targetId}`?null:`t${targetId}`)}>
                           <td style={{ padding:"4px 8px", borderBottom:`1px solid ${C.border}`, color:TARGET_COLOR, fontWeight:600 }}>T{targetId}</td>
                           {agents.map(a => {
@@ -734,8 +735,8 @@ export default function App() {
                     { id:"coverage", lbl:"UNASSIGNED[]" },
                   ].map((b) => (
                     <button key={b.id} onClick={() => setJsonView(b.id)} style={{
-                      background: jsonView === b.id ? "rgba(56,189,248,0.12)" : C.bg,
-                      border:`1px solid ${jsonView === b.id ? C.cyan : C.border}`,
+                      background: jsonView === b.id ? "rgba(79,124,255,0.14)" : C.bg,
+                      border:`1px solid ${jsonView === b.id ? C.accent + "70" : C.border}`,
                       color: jsonView === b.id ? C.cyan : C.dim,
                       padding:"4px 10px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
                     }}>{b.lbl}</button>
@@ -779,8 +780,8 @@ export default function App() {
                     { id:"system", lbl:`SYS ${logCounts.system}` },
                   ].map((b) => (
                     <button key={b.id} onClick={() => setLogFilter(b.id)} style={{
-                      background: logFilter === b.id ? "rgba(56,189,248,0.12)" : C.bg,
-                      border:`1px solid ${logFilter === b.id ? C.cyan : C.border}`,
+                      background: logFilter === b.id ? "rgba(79,124,255,0.14)" : C.bg,
+                      border:`1px solid ${logFilter === b.id ? C.accent + "70" : C.border}`,
                       color: logFilter === b.id ? C.cyan : C.dim,
                       padding:"4px 10px", borderRadius:4, cursor:"pointer", fontSize:11, fontFamily:"inherit",
                     }}>{b.lbl}</button>
@@ -862,7 +863,7 @@ export default function App() {
       </div>
 
       {/* Config footer */}
-      <div style={{ flexShrink:0, marginTop:10, padding:"10px 16px", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:8, display:"flex", gap:18, flexWrap:"wrap", alignItems:"center", boxShadow:"0 2px 8px rgba(0,0,0,0.25)" }}>
+      <div style={{ flexShrink:0, marginTop:10, padding:"10px 16px", background:C.gradientPanel, border:`1px solid ${C.border}`, borderRadius:8, display:"flex", gap:18, flexWrap:"wrap", alignItems:"center", boxShadow:"0 2px 12px rgba(0,0,0,0.3), 0 0 0 1px rgba(79,124,255,0.04)" }}>
         <span style={{ fontSize:11, color:C.dim, letterSpacing:"0.05em" }}>ENGINE CONFIG — mirrors assignment_engine.py</span>
         {[
           { label:"Algorithm",     value:"priority_v2_antithrash",     col:C.green },

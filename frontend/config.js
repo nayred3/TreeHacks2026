@@ -42,6 +42,8 @@ export const AGENT_COLORS = {
   cam_2: "#fbbf24",
   cam_3: "#a78bfa",
   cam_4: "#f472b6",
+  cam1: "#38bdf8",
+  cam2: "#fbbf24",
   cam_mobile: "#f472b6",
 };
 

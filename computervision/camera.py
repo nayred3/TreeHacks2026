@@ -1,6 +1,10 @@
 import argparse
-import time
 import os
+import time
+
+# MPS (Apple Silicon): torchvision NMS not implemented; use CPU fallback for that op
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
 import json
 import socket
 from dataclasses import dataclass

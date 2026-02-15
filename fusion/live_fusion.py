@@ -190,7 +190,7 @@ class LiveFusionTracker:
 class LiveFusionServer:
     """UDP listener + Flask server for real-time fusion visualisation."""
 
-    def __init__(self, udp_port: int = 5055, http_port: int = 5050):
+    def __init__(self, udp_port: int = 5055, http_port: int = 5051):
         self.udp_port = udp_port
         self.http_port = http_port
 
@@ -214,6 +214,11 @@ class LiveFusionServer:
         def api_live():
             return jsonify(self._build_state())
 
+        @self.app.route("/api/map")
+        def api_map():
+            """Same schema as fusion viz /api/map for frontend Live Demo."""
+            return jsonify(self._build_map_payload())
+
     def _build_state(self) -> dict:
         now = time.time()
         with self._lock:
@@ -235,6 +240,39 @@ class LiveFusionServer:
             "cameras": cameras,
             "walls": [],
             "fused_tracks": fused,
+            "timestamp": now,
+        }
+
+    def _build_map_payload(self) -> dict:
+        """Build /api/map payload (same schema as fusion viz) for frontend Live Demo."""
+        now = time.time()
+        with self._lock:
+            cameras = []
+            camera_positions = {}
+            for cam_id, cc in self._cameras.items():
+                pos = [round(cc.x, 3), round(cc.y, 3)]
+                head = round(cc.heading_deg, 1)
+                cameras.append({
+                    "id": cam_id,
+                    "position": pos,
+                    "heading": head,
+                    "image_width": cc.image_width,
+                    "image_height": cc.image_height,
+                    "hfov_deg": cc.hfov_deg,
+                    "mobile": False,
+                })
+                camera_positions[cam_id] = {"position": pos, "heading": head}
+            fused = self._tracker.get_all_tracks(now)
+
+        timestep = {
+            "t": now,
+            "fused_tracks": fused,
+            "camera_positions": camera_positions,
+        }
+        return {
+            "cameras": cameras,
+            "walls": [],
+            "timesteps": [timestep],
             "timestamp": now,
         }
 
@@ -402,8 +440,8 @@ def main():
         help="UDP port to receive camera.py messages (default: 5055)",
     )
     p.add_argument(
-        "--http-port", type=int, default=5050,
-        help="HTTP port for the visualisation (default: 5050)",
+        "--http-port", type=int, default=5051,
+        help="HTTP port for /api/map (default: 5051, matches frontend proxy)",
     )
     args = p.parse_args()
 

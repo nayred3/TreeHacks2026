@@ -81,14 +81,14 @@ function prepareHiDPI(canvas) {
 export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, _unused, wallLayout, paths, wallGrid) {
   const ctx = prepareHiDPI(canvas);
   ctx.clearRect(0, 0, WW, WH);
-  ctx.fillStyle = "#000";
+  ctx.fillStyle = "#0a0c18";
   ctx.fillRect(0, 0, WW, WH);
 
   // Wall overlay: preset uses wallLayout (segments + doors), schematic uses raw wallGrid (light=wall, black=empty)
   if (wallLayout) {
     ctx.save();
     ctx.lineCap = "round";
-    ctx.strokeStyle = "rgba(148,163,184,0.5)";
+    ctx.strokeStyle = "rgba(94,129,172,0.55)";
     ctx.lineWidth = 2.4;
 
     const doors = wallLayout.doors || [];
@@ -157,7 +157,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
   } else if (wallGrid?.length) {
     // Schematic: draw each wall cell as a filled rect (light pixels = walls)
     ctx.save();
-    ctx.fillStyle = "rgba(148,163,184,0.5)";
+    ctx.fillStyle = "rgba(94,129,172,0.55)";
     const rows = wallGrid.length;
     const cols = wallGrid[0]?.length ?? 0;
     for (let r = 0; r < rows; r++) {
@@ -171,7 +171,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
   }
 
   // Grid
-  ctx.strokeStyle = "rgba(148,163,184,0.15)";
+  ctx.strokeStyle = "rgba(79,124,255,0.12)";
   ctx.lineWidth = 1;
   for (let x = 0; x < WW; x += 40) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WH); ctx.stroke();
