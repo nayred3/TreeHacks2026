@@ -78,7 +78,7 @@ function prepareHiDPI(canvas) {
   return ctx;
 }
 
-export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, _unused, wallLayout, paths, wallGrid, hideCameraCone = false, extraDistanceLines = [], brightenTargets = false) {
+export function drawScene(canvas, agents, targets, result, highlighted, now, showZones, _unused, wallLayout, paths, wallGrid, hideCameraCone = false) {
   const ctx = prepareHiDPI(canvas);
   ctx.clearRect(0, 0, WW, WH);
   ctx.fillStyle = "#0a0c18";
@@ -302,29 +302,6 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     ctx.restore();
   }
 
-  // Extra distance lines (e.g. Logan–target in Live Demo 1)
-  for (const { agentId, targetId } of extraDistanceLines) {
-    const a = agents.find((x) => x.id === agentId);
-    const t = targets.find((x) => x.id === targetId);
-    if (!a || !t) continue;
-    const d = pathDist(targetId, agentId);
-    const color = AGENT_COLORS[agentId] || "#fbbf24";
-    const tp = toPx(t.position), ap = toPx(a.position);
-    ctx.save();
-    ctx.globalAlpha = 0.7;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
-    drawPath(ctx, tp, ap, paths, agentId, targetId);
-    ctx.setLineDash([]);
-    const mp = pathMidpoint(tp, ap, paths, agentId, targetId);
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = color;
-    ctx.font = "10px 'Inter','Segoe UI',system-ui,sans-serif";
-    ctx.fillText(`${agentId}→T${targetId} ${formatDistanceFeet(d)} ft`, mp.x + 3, mp.y - 2);
-    ctx.restore();
-  }
-
   // Primary lines (solid, bold, glowing)
   for (const [tidStr, aId] of Object.entries(primary)) {
     const t = targets.find((x) => x.id === +tidStr);
@@ -352,7 +329,6 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
   }
 
   // Targets
-  const targetColor = brightenTargets ? "#ff6b6b" : TARGET_COLOR;
   for (const t of targets) {
     const tp = toPx(t.position);
     const isHl = highlighted === `t${t.id}`;
@@ -360,25 +336,25 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const hasSec = secondary?.[t.id] !== undefined || Object.values(agentSecondary).includes(t.id);
     const hasTer = tertiary?.[t.id] !== undefined;
     const age = (now - t.lastSeen) / STALE_TTL;
-    const alpha = brightenTargets ? 1 : Math.max(0.2, 1 - age * 0.8);
+    const alpha = Math.max(0.2, 1 - age * 0.8);
     const pulse = 0.5 + 0.5 * Math.sin(now / 380 + t.id * 1.4);
-    const r = brightenTargets ? 10 + pulse * 2 : 8 + pulse * 2;
+    const r = 8 + pulse * 2;
 
     ctx.save();
-    // Dim red glow (brighter in Live Demo 1)
-    ctx.shadowColor = targetColor;
-    ctx.shadowBlur = brightenTargets ? (isHl ? 24 : 18) : (isHl ? 16 : 10);
+    // Dim red glow
+    ctx.shadowColor = TARGET_COLOR;
+    ctx.shadowBlur = isHl ? 16 : 10;
     // Pulse ring
-    ctx.globalAlpha = alpha * (brightenTargets ? 0.4 : 0.2) * pulse;
+    ctx.globalAlpha = alpha * 0.2 * pulse;
     ctx.beginPath(); ctx.arc(tp.x, tp.y, r + 12 * pulse, 0, Math.PI * 2);
-    ctx.strokeStyle = isHl ? "#fff" : targetColor;
+    ctx.strokeStyle = isHl ? "#fff" : TARGET_COLOR;
     ctx.lineWidth = isHl ? 2 : 1;
     ctx.stroke();
 
-    // Main dot — all red (brighter in Live Demo 1)
+    // Main dot — all red
     ctx.globalAlpha = alpha;
     ctx.beginPath(); ctx.arc(tp.x, tp.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = targetColor;
+    ctx.fillStyle = TARGET_COLOR;
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = isHl ? "#f1f5f9" : "rgba(148,163,184,0.5)";

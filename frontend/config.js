@@ -36,8 +36,6 @@ export const ROOM_BOUNDS = {
 export const AGENT_COLORS = {
   Alice: "#38bdf8",
   Bob: "#fbbf24",
-  Logan: "#fbbf24",
-  Justin: "#38bdf8",
   Charlie: "#a78bfa",
   Diana: "#f472b6",
   cam_1: "#38bdf8",
