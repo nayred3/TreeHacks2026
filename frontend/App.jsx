@@ -42,6 +42,9 @@ export default function App() {
     if (wallsDropdownOpen) { document.addEventListener("click", close); return () => document.removeEventListener("click", close); }
   }, [wallsDropdownOpen]);
 
+  const addEvent = useCallback((msg, type = "info") =>
+    setEvents(prev => [{ msg, type, ts: Date.now() }, ...prev.slice(0, 59)]), []);
+
   // Live Demo: poll fusion /api/map, map cameras -> agents, fused_tracks -> targets
   useEffect(() => {
     if (!isLiveDemo) {
@@ -68,19 +71,20 @@ export default function App() {
     return () => { cancelled = true; clearInterval(iv); };
   }, [isLiveDemo, addEvent]);
 
-  const addEvent = useCallback((msg, type = "info") =>
-    setEvents(prev => [{ msg, type, ts: Date.now() }, ...prev.slice(0, 59)]), []);
-
   // Init
   useEffect(() => {
     const now = Date.now();
+    const agentData = [
+      { id: "Alice",   position: { x: -250, y: -150 }, vel: { vx:  1.5, vy:  1.0 } },
+      { id: "Bob",     position: { x:  250, y: -120 }, vel: { vx: -1.2, vy:  1.5 } },
+      { id: "Charlie", position: { x:   50, y:  150 }, vel: { vx:  0.8, vy: -1.8 } },
+      { id: "Diana",   position: { x: -220, y:  120 }, vel: { vx:  1.6, vy: -0.9 } },
+    ];
     stateRef.current = {
-      agents: [
-        { id: "Alice",   position: { x: -250, y: -150 }, vel: { vx:  1.5, vy:  1.0 } },
-        { id: "Bob",     position: { x:  250, y: -120 }, vel: { vx: -1.2, vy:  1.5 } },
-        { id: "Charlie", position: { x:   50, y:  150 }, vel: { vx:  0.8, vy: -1.8 } },
-        { id: "Diana",   position: { x: -220, y:  120 }, vel: { vx:  1.6, vy: -0.9 } },
-      ],
+      agents: agentData.map(a => ({
+        ...a,
+        facing: Math.atan2(a.vel.vy, a.vel.vx),
+      })),
       targets: [
         { id: 1, position: { x: -120, y: -50 }, vel: { vx:  2.0, vy:  1.0  }, confidence: 0.93, lastSeen: now },
         { id: 2, position: { x:  180, y:  60 }, vel: { vx: -1.6, vy:  1.2 }, confidence: 0.81, lastSeen: now },
@@ -142,6 +146,15 @@ export default function App() {
       return !wallGrid[r][c];
     };
 
+    // Smooth facing: max rad/tick — person-like turning (~25°/sec)
+    const FACING_TURN_RATE = 0.022;
+    const angleDiff = (from, to) => {
+      let d = to - from;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      return d;
+    };
+
     const constrainedWalk = (position, vel, wander = 0.5) => {
       const basePos = wallGrid ? nearestWalkablePos(position) : position;
       const r = randomWalk(basePos, vel, wander);
@@ -164,7 +177,16 @@ export default function App() {
       } else {
         if (paused || now - lastT < 50) return;
         lastT = now; tickN++;
-        s.agents = s.agents.map(a => { const r = constrainedWalk(a.position, a.vel, CM_PER_TICK); return { ...a, position: r.pos, vel: r.vel }; });
+        s.agents = s.agents.map(a => {
+          const r = constrainedWalk(a.position, a.vel, CM_PER_TICK);
+          const targetAngle = (r.vel.vx !== 0 || r.vel.vy !== 0) ? Math.atan2(r.vel.vy, r.vel.vx) : a.facing;
+          const diff = angleDiff(a.facing, targetAngle);
+          const turn = Math.max(-FACING_TURN_RATE, Math.min(FACING_TURN_RATE, diff));
+          let newFacing = a.facing + turn;
+          while (newFacing > Math.PI) newFacing -= 2 * Math.PI;
+          while (newFacing < -Math.PI) newFacing += 2 * Math.PI;
+          return { ...a, position: r.pos, vel: r.vel, facing: newFacing };
+        });
         if (!frozen) {
           s.targets = s.targets.map(t => { const r = constrainedWalk(t.position, t.vel, CM_PER_TICK); return { ...t, position: r.pos, vel: r.vel, lastSeen: Date.now() }; });
         }

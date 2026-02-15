@@ -367,10 +367,11 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const isHl = highlighted === a.id;
     const r = isHl ? 14 : 11;
 
-    // Heading: fusion uses degrees (0 = +x, 90 = +y). Canvas: 0 = right, π/2 = down.
-    // If no heading, derive from velocity.
+    // Heading: a.facing (rad, smoothed) > fusion heading (deg) > velocity
     let angleRad;
-    if (a.heading != null && typeof a.heading === "number") {
+    if (a.facing != null && typeof a.facing === "number") {
+      angleRad = a.facing;
+    } else if (a.heading != null && typeof a.heading === "number") {
       angleRad = (a.heading * Math.PI) / 180;
     } else if (a.vel && (a.vel.vx !== 0 || a.vel.vy !== 0)) {
       angleRad = Math.atan2(a.vel.vy, a.vel.vx);
@@ -380,7 +381,7 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     const startAngle = angleRad - FOV_WEDGE_SPAN / 2;
     const endAngle = angleRad + FOV_WEDGE_SPAN / 2;
 
-    // 60° facing cone — draw first so it extends from behind the agent
+    // 60° facing cone — ombre fill (darker at agent, lighter at edge), no outline
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(ap.x, ap.y);
@@ -389,14 +390,18 @@ export function drawScene(canvas, agents, targets, result, highlighted, now, sho
     if (color.startsWith("#")) {
       const hex = color.slice(1);
       const R = parseInt(hex.slice(0, 2), 16), G = parseInt(hex.slice(2, 4), 16), B = parseInt(hex.slice(4, 6), 16);
-      ctx.fillStyle = `rgba(${R},${G},${B},0.5)`;
+      const grad = ctx.createRadialGradient(ap.x, ap.y, 0, ap.x, ap.y, FOV_WEDGE_RADIUS);
+      grad.addColorStop(0, `rgba(${R},${G},${B},0.55)`);
+      grad.addColorStop(0.5, `rgba(${R},${G},${B},0.3)`);
+      grad.addColorStop(1, `rgba(${R},${G},${B},0.08)`);
+      ctx.fillStyle = grad;
     } else {
-      ctx.fillStyle = "rgba(136,136,136,0.5)";
+      const grad = ctx.createRadialGradient(ap.x, ap.y, 0, ap.x, ap.y, FOV_WEDGE_RADIUS);
+      grad.addColorStop(0, "rgba(136,136,136,0.5)");
+      grad.addColorStop(1, "rgba(136,136,136,0.06)");
+      ctx.fillStyle = grad;
     }
     ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    ctx.stroke();
     ctx.restore();
 
     // Agent dot + label
