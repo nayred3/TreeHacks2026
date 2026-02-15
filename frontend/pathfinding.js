@@ -16,34 +16,63 @@ export function createPresetWallLayout(ww, wh) {
   const addHDoor = (y, x0, x1) => doors.push({ x1: x0, y1: y, x2: x1, y2: y });
   const addVDoor = (x, y0, y1) => doors.push({ x1: x, y1: y0, x2: x, y2: y1 });
 
-  // Outer shell walls.
-  addHWall(12, 12, ww - 12);
-  addHWall(wh - 12, 12, ww - 12);
-  addVWall(12, 12, wh - 12);
-  addVWall(ww - 12, 12, wh - 12);
-  // Doors are explicitly on these walls.
-  addHDoor(12, ww * 0.15, ww * 0.2);
-  addHDoor(wh - 12, ww * 0.45, ww * 0.5);
-  addVDoor(12, wh * 0.4, wh * 0.48);
+  const doorSize = 56; // door opening in pixels (must be wider than wall grid thickness ~24px)
+  const doorHalf = doorSize / 2;
 
-  // Interior corridor wall + doors.
-  const cy = wh * 0.46;
-  addHWall(cy, 12, ww - 12);
-  addHDoor(cy, ww * 0.26, ww * 0.31);
-  addHDoor(cy, ww * 0.49, ww * 0.54);
-  addHDoor(cy, ww * 0.71, ww * 0.76);
+  // Helper: add a wall segment with a centered door
+  const addHSegDoor = (y, x0, x1) => {
+    addHWall(y, x0, x1);
+    const mid = (x0 + x1) / 2;
+    addHDoor(y, mid - doorHalf, mid + doorHalf);
+  };
+  const addVSegDoor = (x, y0, y1) => {
+    addVWall(x, y0, y1);
+    const mid = (y0 + y1) / 2;
+    addVDoor(x, mid - doorHalf, mid + doorHalf);
+  };
 
-  // Vertical room dividers + doors.
-  addVWall(ww * 0.28, cy, wh - 12);
-  addVWall(ww * 0.5, cy, wh - 12);
-  addVWall(ww * 0.72, cy, wh - 12);
-  addVDoor(ww * 0.28, wh * 0.66, wh * 0.72);
-  addVDoor(ww * 0.5, wh * 0.56, wh * 0.62);
-  addVDoor(ww * 0.72, wh * 0.66, wh * 0.73);
+  // Key x/y coordinates for wall intersections
+  const cy = wh * 0.46;       // corridor y
+  const vx1 = ww * 0.28;      // vertical divider 1
+  const vx2 = ww * 0.5;       // vertical divider 2
+  const vx3 = ww * 0.72;      // vertical divider 3
+  const bx1 = ww * 0.38;      // upper barrier 1
+  const bx2 = ww * 0.62;      // upper barrier 2
+  const L = 12, R = ww - 12, T = 12, B = wh - 12;
 
-  // Lower partial barriers.
-  addVWall(ww * 0.38, 12, wh * 0.22);
-  addVWall(ww * 0.62, 12, wh * 0.24);
+  // Top wall — split at upper barrier intersections
+  addHSegDoor(T, L, bx1);
+  addHSegDoor(T, bx1, bx2);
+  addHSegDoor(T, bx2, R);
+
+  // Bottom wall — split at vertical divider intersections
+  addHSegDoor(B, L, vx1);
+  addHSegDoor(B, vx1, vx2);
+  addHSegDoor(B, vx2, vx3);
+  addHSegDoor(B, vx3, R);
+
+  // Left wall — split at corridor intersection
+  addVSegDoor(L, T, cy);
+  addVSegDoor(L, cy, B);
+
+  // Right wall — split at corridor intersection
+  addVSegDoor(R, T, cy);
+  addVSegDoor(R, cy, B);
+
+  // Interior corridor — split into spans between vertical dividers
+  addHSegDoor(cy, L, vx1);
+  addHSegDoor(cy, vx1, vx2);
+  addHSegDoor(cy, vx2, vx3);
+  addHSegDoor(cy, vx3, R);
+
+  // Vertical room dividers — each gets a centered door
+  addVSegDoor(vx1, cy, B);
+  addVSegDoor(vx2, cy, B);
+  addVSegDoor(vx3, cy, B);
+
+  // Lower partial barriers (no doors — short stub walls).
+  addVWall(bx1, T, wh * 0.22);
+  addVWall(bx2, T, wh * 0.24);
 
   return { walls, doors };
 }
@@ -88,13 +117,24 @@ export function wallLayoutToGrid(layout, ww, wh) {
     }
   };
 
+  const DOOR_BUFFER = 20; // pixels of buffer on each side so paths stay centered in the gap
   for (const d of layout.doors || []) {
     const dx = d.x2 - d.x1;
     const dy = d.y2 - d.y1;
-    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / (GRID_SIZE / 2)));
+    const len = Math.hypot(dx, dy);
+    // Shrink carving region by buffer on each end so paths can't hug gap edges
+    const ux = len > 0 ? dx / len : 0;
+    const uy = len > 0 ? dy / len : 0;
+    const cx1 = d.x1 + ux * DOOR_BUFFER;
+    const cy1 = d.y1 + uy * DOOR_BUFFER;
+    const cx2 = d.x2 - ux * DOOR_BUFFER;
+    const cy2 = d.y2 - uy * DOOR_BUFFER;
+    const cdx = cx2 - cx1;
+    const cdy = cy2 - cy1;
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(cdx), Math.abs(cdy)) / (GRID_SIZE / 2)));
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
-      carveDoorPoint(d.x1 + dx * t, d.y1 + dy * t);
+      carveDoorPoint(cx1 + cdx * t, cy1 + cdy * t);
     }
   }
 
@@ -103,7 +143,8 @@ export function wallLayoutToGrid(layout, ww, wh) {
 
 /**
  * Extract a wall grid from an uploaded floor plan image.
- * Dark pixels (low brightness) → wall (true). Light pixels → walkable (false).
+ * Samples each grid cell with multiple pixels. Considers alpha, brightness,
+ * and contrast to detect walls from a variety of floor plan styles.
  * @param {HTMLImageElement} image
  * @param {number} ww - world width in pixels
  * @param {number} wh - world height in pixels
@@ -113,33 +154,269 @@ export function extractWallGrid(image, ww, wh) {
   const cols = Math.ceil(ww / GRID_SIZE);
   const rows = Math.ceil(wh / GRID_SIZE);
 
-  // Draw image to offscreen canvas at world resolution
+  // Draw image onto a white background so transparency becomes white (walkable)
   const offscreen = document.createElement("canvas");
   offscreen.width = ww;
   offscreen.height = wh;
   const ctx = offscreen.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, ww, wh);
   ctx.drawImage(image, 0, 0, ww, wh);
   const imageData = ctx.getImageData(0, 0, ww, wh);
   const pixels = imageData.data;
 
-  const grid = [];
+  // First pass: compute per-cell average brightness to find adaptive threshold
+  const cellBrightness = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      // Sample a few points within the cell for robustness
+      let total = 0, count = 0;
+      for (let dy = 0; dy < GRID_SIZE; dy += 2) {
+        for (let dx = 0; dx < GRID_SIZE; dx += 2) {
+          const px = Math.min(col * GRID_SIZE + dx, ww - 1);
+          const py = Math.min(row * GRID_SIZE + dy, wh - 1);
+          const idx = (py * ww + px) * 4;
+          total += (pixels[idx] + pixels[idx + 1] + pixels[idx + 2]) / 3;
+          count++;
+        }
+      }
+      cellBrightness.push(total / count);
+    }
+  }
+
+  // Compute Otsu's threshold to adaptively separate walls from background
+  const histogram = new Float64Array(256);
+  for (const b of cellBrightness) histogram[Math.min(255, Math.max(0, Math.round(b)))]++;
+  const totalCells = cellBrightness.length;
+  let sumAll = 0;
+  for (let i = 0; i < 256; i++) sumAll += i * histogram[i];
+
+  let bestThreshold = 128, bestVariance = 0;
+  let wB = 0, sumB = 0;
+  for (let t = 0; t < 256; t++) {
+    wB += histogram[t];
+    if (wB === 0) continue;
+    const wF = totalCells - wB;
+    if (wF === 0) break;
+    sumB += t * histogram[t];
+    const mB = sumB / wB;
+    const mF = (sumAll - sumB) / wF;
+    const variance = wB * wF * (mB - mF) * (mB - mF);
+    if (variance > bestVariance) { bestVariance = variance; bestThreshold = t; }
+  }
+
+  // Light pixels = walls, dark pixels = empty space
+  const threshold = Math.max(bestThreshold, 80);
+
+  // Second pass: classify cells — bright cells are walls
+  const raw = [];
+  let idx = 0;
   for (let row = 0; row < rows; row++) {
     const gridRow = [];
     for (let col = 0; col < cols; col++) {
-      // Sample the center pixel of this grid cell
-      const px = Math.min(Math.floor(col * GRID_SIZE + GRID_SIZE / 2), ww - 1);
-      const py = Math.min(Math.floor(row * GRID_SIZE + GRID_SIZE / 2), wh - 1);
-      const idx = (py * ww + px) * 4;
-      const r = pixels[idx];
-      const g = pixels[idx + 1];
-      const b = pixels[idx + 2];
-      // Brightness: simple average. Below threshold = wall.
-      const brightness = (r + g + b) / 3;
-      gridRow.push(brightness < 80);
+      gridRow.push(cellBrightness[idx++] >= threshold);
     }
-    grid.push(gridRow);
+    raw.push(gridRow);
+  }
+
+  // Dilate wall cells by 1 cell in each direction so thin image lines
+  // become solid barriers that A* cannot slip through.
+  const grid = Array.from({ length: rows }, () => Array(cols).fill(false));
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!raw[r][c]) continue;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const rr = r + dr, cc = c + dc;
+          if (rr >= 0 && rr < rows && cc >= 0 && cc < cols) grid[rr][cc] = true;
+        }
+      }
+    }
   }
   return grid;
+}
+
+/**
+ * Convert a raw wall grid into a wallLayout { walls, doors } with clean
+ * horizontal/vertical wall segments and door gaps.
+ * This allows schematic-derived walls to use the same rendering pipeline as preset walls.
+ */
+export function gridToWallLayout(rawGrid) {
+  const rows = rawGrid.length;
+  const cols = rawGrid[0].length;
+  const walls = [];
+  const doors = [];
+  const MIN_WALL = 5;  // min wall length in grid cells
+  const MIN_DOOR = 2;  // min gap to count as a door
+
+  // --- Horizontal walls ---
+  // For each row find long horizontal runs of wall cells
+  const hRunsByRow = [];
+  for (let r = 0; r < rows; r++) {
+    const rowRuns = [];
+    let c = 0;
+    while (c < cols) {
+      if (!rawGrid[r][c]) { c++; continue; }
+      let end = c;
+      while (end < cols && rawGrid[r][end]) end++;
+      if (end - c >= MIN_WALL) rowRuns.push([c, end - 1]);
+      c = end;
+    }
+    hRunsByRow.push(rowRuns);
+  }
+
+  // Group vertically adjacent runs with similar x-range into wall bands
+  const hProcessed = Array.from({ length: rows }, (_, r) =>
+    Array(hRunsByRow[r].length).fill(false)
+  );
+
+  for (let r = 0; r < rows; r++) {
+    for (let ri = 0; ri < hRunsByRow[r].length; ri++) {
+      if (hProcessed[r][ri]) continue;
+      const [c0, c1] = hRunsByRow[r][ri];
+      hProcessed[r][ri] = true;
+
+      let top = r, bot = r;
+      let bandC0 = c0, bandC1 = c1;
+
+      // Grow band downward through adjacent rows with overlapping runs
+      for (let nr = r + 1; nr < Math.min(rows, r + 10); nr++) {
+        let found = false;
+        for (let nri = 0; nri < hRunsByRow[nr].length; nri++) {
+          if (hProcessed[nr][nri]) continue;
+          const [nc0, nc1] = hRunsByRow[nr][nri];
+          const overlap = Math.min(bandC1, nc1) - Math.max(bandC0, nc0);
+          if (overlap > (bandC1 - bandC0) * 0.4) {
+            hProcessed[nr][nri] = true;
+            bot = nr;
+            bandC0 = Math.min(bandC0, nc0);
+            bandC1 = Math.max(bandC1, nc1);
+            found = true;
+          }
+        }
+        if (!found) break;
+      }
+
+      // Skip blocks that aren't clearly horizontal
+      if ((bandC1 - bandC0 + 1) < (bot - top + 1) * 2) continue;
+
+      const centerY = ((top + bot) / 2) * GRID_SIZE + GRID_SIZE / 2;
+      const centerR = Math.round((top + bot) / 2);
+
+      // Scan center row for gaps (doors)
+      const segs = [];
+      let ws = -1;
+      for (let c = bandC0; c <= bandC1 + 1; c++) {
+        const isW = c <= bandC1 && rawGrid[centerR]?.[c];
+        if (isW && ws < 0) ws = c;
+        if (!isW && ws >= 0) { segs.push([ws, c - 1]); ws = -1; }
+      }
+      if (segs.length === 0) continue;
+
+      walls.push({
+        x1: segs[0][0] * GRID_SIZE,
+        y1: centerY,
+        x2: (segs[segs.length - 1][1] + 1) * GRID_SIZE,
+        y2: centerY,
+      });
+
+      for (let i = 1; i < segs.length; i++) {
+        const gStart = segs[i - 1][1] + 1;
+        const gEnd = segs[i][0] - 1;
+        if (gEnd - gStart + 1 >= MIN_DOOR) {
+          doors.push({
+            x1: gStart * GRID_SIZE,
+            y1: centerY,
+            x2: (gEnd + 1) * GRID_SIZE,
+            y2: centerY,
+          });
+        }
+      }
+    }
+  }
+
+  // --- Vertical walls ---
+  const vRunsByCol = [];
+  for (let c = 0; c < cols; c++) {
+    const colRuns = [];
+    let r = 0;
+    while (r < rows) {
+      if (!rawGrid[r][c]) { r++; continue; }
+      let end = r;
+      while (end < rows && rawGrid[end][c]) end++;
+      if (end - r >= MIN_WALL) colRuns.push([r, end - 1]);
+      r = end;
+    }
+    vRunsByCol.push(colRuns);
+  }
+
+  const vProcessed = Array.from({ length: cols }, (_, c) =>
+    Array(vRunsByCol[c].length).fill(false)
+  );
+
+  for (let c = 0; c < cols; c++) {
+    for (let ci = 0; ci < vRunsByCol[c].length; ci++) {
+      if (vProcessed[c][ci]) continue;
+      const [r0, r1] = vRunsByCol[c][ci];
+      vProcessed[c][ci] = true;
+
+      let left = c, right = c;
+      let bandR0 = r0, bandR1 = r1;
+
+      for (let nc = c + 1; nc < Math.min(cols, c + 10); nc++) {
+        let found = false;
+        for (let nci = 0; nci < vRunsByCol[nc].length; nci++) {
+          if (vProcessed[nc][nci]) continue;
+          const [nr0, nr1] = vRunsByCol[nc][nci];
+          const overlap = Math.min(bandR1, nr1) - Math.max(bandR0, nr0);
+          if (overlap > (bandR1 - bandR0) * 0.4) {
+            vProcessed[nc][nci] = true;
+            right = nc;
+            bandR0 = Math.min(bandR0, nr0);
+            bandR1 = Math.max(bandR1, nr1);
+            found = true;
+          }
+        }
+        if (!found) break;
+      }
+
+      if ((bandR1 - bandR0 + 1) < (right - left + 1) * 2) continue;
+
+      const centerX = ((left + right) / 2) * GRID_SIZE + GRID_SIZE / 2;
+      const centerC = Math.round((left + right) / 2);
+
+      const segs = [];
+      let ws = -1;
+      for (let r = bandR0; r <= bandR1 + 1; r++) {
+        const isW = r <= bandR1 && rawGrid[r]?.[centerC];
+        if (isW && ws < 0) ws = r;
+        if (!isW && ws >= 0) { segs.push([ws, r - 1]); ws = -1; }
+      }
+      if (segs.length === 0) continue;
+
+      walls.push({
+        x1: centerX,
+        y1: segs[0][0] * GRID_SIZE,
+        x2: centerX,
+        y2: (segs[segs.length - 1][1] + 1) * GRID_SIZE,
+      });
+
+      for (let i = 1; i < segs.length; i++) {
+        const gStart = segs[i - 1][1] + 1;
+        const gEnd = segs[i][0] - 1;
+        if (gEnd - gStart + 1 >= MIN_DOOR) {
+          doors.push({
+            x1: centerX,
+            y1: gStart * GRID_SIZE,
+            x2: centerX,
+            y2: (gEnd + 1) * GRID_SIZE,
+          });
+        }
+      }
+    }
+  }
+
+  return { walls, doors };
 }
 
 /**
@@ -151,6 +428,17 @@ export function extractWallGrid(image, ww, wh) {
  * @returns {number} distance in pixels
  */
 export function astarDistance(grid, from, to) {
+  return astarPath(grid, from, to).distance;
+}
+
+/**
+ * A* pathfinding returning both distance and the actual path as world-coordinate waypoints.
+ * @param {boolean[][]} grid - wall grid
+ * @param {{x:number,y:number}} from - world position
+ * @param {{x:number,y:number}} to - world position
+ * @returns {{ distance: number, path: {x:number,y:number}[] }}
+ */
+export function astarPath(grid, from, to) {
   const rows = grid.length;
   const cols = grid[0].length;
 
@@ -168,25 +456,26 @@ export function astarDistance(grid, from, to) {
   // If start/end are inside walls, snap to nearest walkable cells.
   const start = grid[sr][sc] ? findNearestWalkable(grid, sr, sc) : [sr, sc];
   const goal = grid[er][ec] ? findNearestWalkable(grid, er, ec) : [er, ec];
-  if (!start || !goal) return Infinity;
+  if (!start || !goal) return { distance: Infinity, path: [] };
   const [sRow, sCol] = start;
   const [gRow, gCol] = goal;
 
   // Same cell
   if (sRow === gRow && sCol === gCol) {
-    return Math.hypot(from.x - to.x, from.y - to.y);
+    return { distance: Math.hypot(from.x - to.x, from.y - to.y), path: [from, to] };
   }
 
   // Obstacle-aware heuristic:
-  // exact shortest-cost-to-go map from every cell -> goal, computed on this wall grid.
-  // Because doors are gaps in walls (walkable cells), this naturally includes doors.
   const potential = getGoalPotential(grid, gRow, gCol);
 
   const startIdx = sRow * cols + sCol;
-  if (!Number.isFinite(potential[startIdx])) return Infinity;
+  if (!Number.isFinite(potential[startIdx])) return { distance: Infinity, path: [] };
 
-  // A* with 8-directional movement and corner-cut prevention.
+  // A* with 8-directional movement, corner-cut prevention, and turn penalty.
+  const TURN_PENALTY = GRID_SIZE * 1.5; // penalise direction changes to produce straighter paths
   const gScore = new Float64Array(rows * cols).fill(Infinity);
+  const cameFrom = new Int32Array(rows * cols).fill(-1);
+  const dirFrom = new Int8Array(rows * cols).fill(-1); // direction index used to reach each cell
   const key = (r, c) => r * cols + c;
   gScore[key(sRow, sCol)] = 0;
 
@@ -212,12 +501,28 @@ export function astarDistance(grid, from, to) {
     if (closed[ck]) continue;
     closed[ck] = 1;
 
-    // Reached goal
+    // Reached goal — reconstruct path
     if (curr.r === gRow && curr.c === gCol) {
-      return gScore[ck];
+      // If straight line is clear of walls, return 2-point path (draws as straight line)
+      if (gridLineOfSight(grid, sRow, sCol, gRow, gCol)) {
+        return { distance: gScore[ck], path: [from, to] };
+      }
+      const path = [to];
+      let idx = ck;
+      while (idx !== -1) {
+        const r = Math.floor(idx / cols);
+        const c = idx % cols;
+        path.push({ x: c * GRID_SIZE + GRID_SIZE / 2, y: r * GRID_SIZE + GRID_SIZE / 2 });
+        idx = cameFrom[idx];
+      }
+      path.push(from);
+      path.reverse();
+      return { distance: gScore[ck], path: simplifyPath(path) };
     }
 
-    for (const [dr, dc, cost] of dirs) {
+    const currDir = dirFrom[ck];
+    for (let di = 0; di < dirs.length; di++) {
+      const [dr, dc, cost] = dirs[di];
       const nr = curr.r + dr;
       const nc = curr.c + dc;
       if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
@@ -225,9 +530,13 @@ export function astarDistance(grid, from, to) {
       const nk = key(nr, nc);
       if (closed[nk]) continue;
 
-      const tentG = gScore[ck] + cost;
+      // Add turn penalty when direction changes from parent
+      const turnCost = (currDir >= 0 && di !== currDir) ? TURN_PENALTY : 0;
+      const tentG = gScore[ck] + cost + turnCost;
       if (tentG < gScore[nk]) {
         gScore[nk] = tentG;
+        cameFrom[nk] = ck;
+        dirFrom[nk] = di;
         const h = potential[nk];
         if (!Number.isFinite(h)) continue;
         open.push({ r: nr, c: nc, f: tentG + h });
@@ -236,7 +545,28 @@ export function astarDistance(grid, from, to) {
   }
 
   // No path found
-  return Infinity;
+  return { distance: Infinity, path: [] };
+}
+
+/** Remove collinear intermediate points to reduce path complexity. */
+function simplifyPath(path) {
+  if (path.length <= 2) return path;
+  const result = [path[0]];
+  for (let i = 1; i < path.length - 1; i++) {
+    const prev = result[result.length - 1];
+    const curr = path[i];
+    const next = path[i + 1];
+    const dx1 = curr.x - prev.x;
+    const dy1 = curr.y - prev.y;
+    const dx2 = next.x - curr.x;
+    const dy2 = next.y - curr.y;
+    // Keep point if direction changes
+    if (Math.abs(dx1 * dy2 - dy1 * dx2) > 0.01) {
+      result.push(curr);
+    }
+  }
+  result.push(path[path.length - 1]);
+  return result;
 }
 
 const goalPotentialCache = new WeakMap(); // grid -> Map("r,c", Float64Array)
@@ -304,6 +634,24 @@ function canStep(grid, r, c, nr, nc) {
     if (grid[r + dr][c] || grid[r][c + dc]) return false;
   }
   return true;
+}
+
+/** Bresenham line-of-sight check: returns true if no wall cell lies on the straight line. */
+function gridLineOfSight(grid, r0, c0, r1, c1) {
+  let dr = Math.abs(r1 - r0), dc = Math.abs(c1 - c0);
+  let r = r0, c = c0;
+  const sr = r0 < r1 ? 1 : -1;
+  const sc = c0 < c1 ? 1 : -1;
+  let err = dr - dc;
+  const rows = grid.length, cols = grid[0].length;
+  while (true) {
+    if (r < 0 || r >= rows || c < 0 || c >= cols) return false;
+    if (grid[r][c]) return false;
+    if (r === r1 && c === c1) return true;
+    const e2 = 2 * err;
+    if (e2 > -dc) { err -= dc; r += sr; }
+    if (e2 < dr)  { err += dr; c += sc; }
+  }
 }
 
 function findNearestWalkable(grid, row, col, maxRadius = 30) {

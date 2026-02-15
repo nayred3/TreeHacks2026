@@ -3,7 +3,7 @@ import { WW, WH, AGENT_COLORS, TARGET_COLOR, REASSIGN_THRESHOLD, STALE_TTL } fro
 import { euclidean, randomWalk } from "./utils.js";
 import { runPriorityAssignment } from "./assignment.js";
 import { drawScene } from "./canvas.js";
-import { extractWallGrid, createPresetWallLayout, wallLayoutToGrid, GRID_SIZE } from "./pathfinding.js";
+import { extractWallGrid, createPresetWallLayout, wallLayoutToGrid, gridToWallLayout, GRID_SIZE } from "./pathfinding.js";
 
 export default function App() {
   const canvasRef = useRef(null);
@@ -27,7 +27,6 @@ export default function App() {
   const [jsonView, setJsonView] = useState("full");
   const [jsonPretty, setJsonPretty] = useState(true);
   const [logFilter, setLogFilter] = useState("all");
-  const [schematicImg, setSchematicImg] = useState(null);
   const [wallGrid, setWallGrid]         = useState(null);
   const [wallLayout, setWallLayout]     = useState(null);
   const fileInputRef = useRef(null);
@@ -121,13 +120,13 @@ export default function App() {
       }
       s.prevPrimary = { ...res.primary }; s.prevSecondary = { ...res.secondary };
       const canvas = canvasRef.current;
-      if (canvas) drawScene(canvas, s.agents, s.targets, res, hl, Date.now(), showZones, schematicImg, wallLayout);
+      if (canvas) drawScene(canvas, s.agents, s.targets, res, hl, Date.now(), showZones, null, wallLayout, res.matrix.paths);
       setTick(tickN); setResult(res);
       setUi({ agents: [...s.agents], targets: [...s.targets] });
     }
     animRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animRef.current);
-  }, [paused, frozen, hl, showZones, addEvent, wallGrid, schematicImg, wallLayout]);
+  }, [paused, frozen, hl, showZones, addEvent, wallGrid, wallLayout]);
 
   const onCanvasClick = e => {
     if (!stateRef.current || !canvasRef.current) return;
@@ -169,16 +168,18 @@ export default function App() {
     if (!file) return;
     const img = new Image();
     img.onload = () => {
-      setSchematicImg(img);
-      setWallLayout(null);
-      setWallGrid(extractWallGrid(img, WW, WH));
+      // Convert image → raw grid → wallLayout → pathfinding grid (same pipeline as preset walls)
+      const rawGrid = extractWallGrid(img, WW, WH);
+      const layout = gridToWallLayout(rawGrid);
+      setWallLayout(layout);
+      setWallGrid(wallLayoutToGrid(layout, WW, WH));
+      if (stateRef.current) { stateRef.current.prevPrimary = {}; stateRef.current.prevSecondary = {}; }
       addEvent("🏗 Schematic loaded — wall-aware pathfinding active", "system");
     };
     img.src = URL.createObjectURL(file);
     e.target.value = "";
   };
   const clearSchematic = () => {
-    setSchematicImg(null);
     setWallLayout(null);
     setWallGrid(null);
     if (stateRef.current) { stateRef.current.prevPrimary = {}; stateRef.current.prevSecondary = {}; }
@@ -187,7 +188,6 @@ export default function App() {
 
   const addPresetWalls = () => {
     const layout = createPresetWallLayout(WW, WH);
-    setSchematicImg(null);
     setWallLayout(layout);
     setWallGrid(wallLayoutToGrid(layout, WW, WH));
     if (stateRef.current) {
@@ -340,7 +340,7 @@ export default function App() {
             boxShadow:`0 0 16px ${C.teal}55`,
             fontFamily:"inherit",
           }}> LOAD SCHEMATIC</button>
-          {(schematicImg || wallLayout) && <button onClick={clearSchematic} style={{ background:"#180e0e", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
+          {wallLayout && <button onClick={clearSchematic} style={{ background:"#180e0e", border:`1px solid ${C.red}60`, color:C.red, padding:"6px 12px", borderRadius:4, cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>✕ CLEAR MAP</button>}
           <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:4, padding:"6px 10px", fontSize:9, color:C.dim, display:"flex", alignItems:"center", gap:6 }}>
             <span style={{ color:paused?C.orange:C.green, animation:paused?"none":"pulse 1.5s infinite" }}>●</span>
             {String(tick).padStart(4,"0")} <span style={{ color:C.dim }}>|</span> <span style={{ color:rCount?C.yellow:C.dim }}>↩{rCount}</span>
