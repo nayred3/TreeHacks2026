@@ -8,17 +8,15 @@ import Network
 /// {
 ///   "type":       "camera_state",
 ///   "camera_id":  "phone_1",
-///   "position":   [x, y],          // metres from central phone
-///   "heading":    123.4,            // degrees, math convention (0 = +x/East, 90 = +y/North)
-///   "timestamp":  1700000000.123    // Unix seconds
+///   "position":   [x, y],
+///   "heading":    123.4,
+///   "timestamp":  1700000000.123
 /// }
 /// ```
 class PositionSender: ObservableObject {
 
     @Published var isConnected = false
     private(set) var isConfigured = false
-
-    // MARK: - Private
 
     private var connection: NWConnection?
     private var cameraID: String = ""
@@ -53,10 +51,21 @@ class PositionSender: ObservableObject {
         isConfigured = true
     }
 
+    /// Send position for this sender's own camera_id.
     func sendPosition(
         position: [Double],
         heading: Double,
         completion: ((Bool) -> Void)? = nil
+    ) {
+        sendPosition(cameraID: cameraID, position: position, heading: heading, completion: completion)
+    }
+
+    /// Send position on behalf of any camera_id (used by anchor for movers).
+    func sendPosition(
+        cameraID: String,
+        position: [Double],
+        heading: Double,
+        completion: ((Bool) -> Void)?
     ) {
         guard let connection else {
             completion?(false)
@@ -78,9 +87,7 @@ class PositionSender: ObservableObject {
 
         connection.send(content: data, completion: .contentProcessed { error in
             let ok = error == nil
-            DispatchQueue.main.async {
-                completion?(ok)
-            }
+            DispatchQueue.main.async { completion?(ok) }
         })
     }
 

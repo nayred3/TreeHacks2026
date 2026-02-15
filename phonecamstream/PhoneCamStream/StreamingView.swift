@@ -9,37 +9,27 @@ struct StreamingView: View {
     @StateObject private var frameStreamer = FrameStreamer()
     @StateObject private var positionSender = PositionSender()
     @StateObject private var headingTracker = HeadingTracker()
+    @StateObject private var peerClient = MoverPeerClient()
 
     @State private var framesSent: Int = 0
     @State private var positionsSent: Int = 0
-    @State private var lastError: String?
     @State private var positionTask: Task<Void, Never>?
-    @State private var hasStopped = false          // guard against double-stop
+    @State private var hasStopped = false
+
+    /// Current position: UWB-derived if available, else manual fallback.
+    private var currentPosition: [Double] {
+        peerClient.position ?? [config.posX, config.posY]
+    }
 
     var body: some View {
         ZStack {
-            // Full-screen camera preview (safe even before session is running)
             CameraPreviewView(session: cameraManager.session)
                 .ignoresSafeArea()
 
-            // Permission-denied overlay
             if cameraManager.permissionDenied {
-                VStack(spacing: 12) {
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 48))
-                    Text("Camera access denied")
-                        .font(.headline)
-                    Text("Go to Settings → PhoneCamStream → Camera and enable access.")
-                        .font(.caption)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black)
+                permissionDeniedOverlay
             }
 
-            // Status overlay + stop button
             VStack {
                 statusOverlay
                     .padding(.horizontal)
@@ -60,9 +50,26 @@ struct StreamingView: View {
             }
         }
         .onAppear(perform: startEverything)
-        .onDisappear(perform: cleanUpOnly)      // just release resources, don't navigate
+        .onDisappear(perform: cleanUpOnly)
         .navigationBarBackButtonHidden(true)
         .statusBarHidden()
+    }
+
+    // MARK: - Permission Denied
+
+    private var permissionDeniedOverlay: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "camera.fill").font(.system(size: 48))
+            Text("Camera access denied")
+                .font(.headline)
+            Text("Go to Settings → PhoneCamStream → Camera.")
+                .font(.caption)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+        .foregroundColor(.white)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
     }
 
     // MARK: - Status Overlay
@@ -81,6 +88,26 @@ struct StreamingView: View {
 
             Divider().background(.white.opacity(0.3))
 
+            // UWB peer status
+            HStack {
+                Circle()
+                    .fill(peerClient.isConnectedToAnchor ? .green : .yellow)
+                    .frame(width: 8, height: 8)
+                Text(peerClient.statusText)
+                    .font(.caption2)
+                Spacer()
+                if let pos = peerClient.position {
+                    Text(String(format: "UWB (%.1f, %.1f)", pos[0], pos[1]))
+                        .font(.caption2.monospaced())
+                        .foregroundColor(.green)
+                } else {
+                    Text("manual pos")
+                        .font(.caption2)
+                        .foregroundColor(.yellow)
+                }
+            }
+
+            // Video stream status
             HStack {
                 Circle()
                     .fill(frameStreamer.isConnected ? .green : .red)
@@ -92,6 +119,7 @@ struct StreamingView: View {
                     .font(.caption2.monospaced())
             }
 
+            // Position stream status
             HStack {
                 Circle()
                     .fill(positionSender.isConnected ? .green : .red)
@@ -103,19 +131,13 @@ struct StreamingView: View {
                     .font(.caption2.monospaced())
             }
 
+            // Current position
             HStack {
-                Text("pos (\(config.posX, specifier: "%.1f"), \(config.posY, specifier: "%.1f"))m")
+                Text(String(format: "pos (%.2f, %.2f)m", currentPosition[0], currentPosition[1]))
                     .font(.caption2.monospaced())
                 Spacer()
-                Text("heading \(headingTracker.heading, specifier: "%.1f")°")
+                Text(String(format: "heading %.1f°", headingTracker.heading))
                     .font(.caption2.monospaced())
-            }
-
-            if let error = lastError {
-                Text(error)
-                    .font(.caption2)
-                    .foregroundColor(.red)
-                    .lineLimit(1)
             }
         }
         .padding(10)
@@ -129,11 +151,11 @@ struct StreamingView: View {
     private func startEverything() {
         hasStopped = false
 
-        // 1. Camera (requests permission first, then starts capture)
+        // Camera
         cameraManager.targetFPS = config.streamFPS
         cameraManager.startCapture()
 
-        // 2. Frame streamer
+        // Frame streamer
         frameStreamer.configure(
             targetHost: config.loganIP,
             targetPort: config.loganPortInt,
@@ -141,29 +163,32 @@ struct StreamingView: View {
             jpegQuality: config.jpegQuality
         )
 
-        // 3. Position sender
+        // Position sender
         positionSender.configure(
             targetHost: config.justinIP,
             targetPort: config.justinPortInt,
             cameraID: config.cameraID
         )
 
-        // 4. Compass
+        // Compass
         headingTracker.start()
 
-        // 5. Hook camera frames → streamer
+        // UWB peer connection to anchor
+        peerClient.start(cameraID: config.cameraID)
+
+        // Hook camera frames → streamer
         cameraManager.onFrame = { [weak frameStreamer] sampleBuffer in
             frameStreamer?.sendFrame(sampleBuffer) { success in
-                DispatchQueue.main.async {
-                    if success { framesSent += 1 }
+                if success {
+                    DispatchQueue.main.async { framesSent += 1 }
                 }
             }
         }
 
-        // 6. Position update loop (10 Hz)
+        // Position update loop (10 Hz) — uses UWB position when available
         positionTask = Task {
             while !Task.isCancelled {
-                let pos = [config.posX, config.posY]
+                let pos = currentPosition
                 let hdg = headingTracker.heading
 
                 positionSender.sendPosition(position: pos, heading: hdg) { success in
@@ -172,12 +197,11 @@ struct StreamingView: View {
                     }
                 }
 
-                try? await Task.sleep(nanoseconds: 100_000_000) // 100 ms
+                try? await Task.sleep(nanoseconds: 100_000_000)
             }
         }
     }
 
-    /// Called when the user explicitly taps Stop → tear down + navigate back.
     private func userTappedStop() {
         guard !hasStopped else { return }
         hasStopped = true
@@ -185,8 +209,6 @@ struct StreamingView: View {
         onStop()
     }
 
-    /// Called from onDisappear — release resources but do NOT call onStop()
-    /// (avoids double-navigation crash).
     private func cleanUpOnly() {
         tearDown()
     }
@@ -199,5 +221,6 @@ struct StreamingView: View {
         frameStreamer.stop()
         positionSender.stop()
         headingTracker.stop()
+        peerClient.stop()
     }
 }

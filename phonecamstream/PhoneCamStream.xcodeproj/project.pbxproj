@@ -9,19 +9,25 @@
 /* Begin PBXBuildFile section */
 		03E6B30CFF8A4C5D10456CB7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23EA33B0F920B5E1A0DA3F5B /* ContentView.swift */; };
 		058CC07A8750EFDE6C9220C6 /* FrameStreamer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6227F36D4C62511975651E9 /* FrameStreamer.swift */; };
+		2667FC94205E572208418F59 /* MoverPeerClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119FC7ED377925A0ADCD0573 /* MoverPeerClient.swift */; };
 		6BCD006EF04A41A0C4396314 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B3DD3B2A5E0633AA5F3FC9 /* CameraManager.swift */; };
+		6F1AC4B02401287463E12B97 /* AnchorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26BA288516C3D88C67E1D10A /* AnchorManager.swift */; };
 		8E5C017AC800A34462438827 /* PhoneCamStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D101BF9AF22DEEA7817D073 /* PhoneCamStreamApp.swift */; };
 		994D9D79A2BE791834A2DD0B /* CameraPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2E299D82B8E70EE02B0A19A /* CameraPreview.swift */; };
+		BF72FBB07EFB230FD5ABB9C8 /* AnchorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89952E75F0F2249382D6BCD5 /* AnchorView.swift */; };
 		D6013B7B2552C30D986CCA0D /* HeadingTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41FFA8554B028AF465197FCD /* HeadingTracker.swift */; };
 		D9EAA9AE1CBF37DE60257951 /* PositionSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87A54CA12AB0AE0290C9A6D2 /* PositionSender.swift */; };
 		DA16DE95C9C8A68B237EC2E0 /* StreamingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E65AB07D6FB9EBE59155E448 /* StreamingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		119FC7ED377925A0ADCD0573 /* MoverPeerClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoverPeerClient.swift; sourceTree = "<group>"; };
 		23EA33B0F920B5E1A0DA3F5B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		26BA288516C3D88C67E1D10A /* AnchorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnchorManager.swift; sourceTree = "<group>"; };
 		41FFA8554B028AF465197FCD /* HeadingTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadingTracker.swift; sourceTree = "<group>"; };
 		5D101BF9AF22DEEA7817D073 /* PhoneCamStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneCamStreamApp.swift; sourceTree = "<group>"; };
 		87A54CA12AB0AE0290C9A6D2 /* PositionSender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PositionSender.swift; sourceTree = "<group>"; };
+		89952E75F0F2249382D6BCD5 /* AnchorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnchorView.swift; sourceTree = "<group>"; };
 		D2E299D82B8E70EE02B0A19A /* CameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreview.swift; sourceTree = "<group>"; };
 		E65AB07D6FB9EBE59155E448 /* StreamingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingView.swift; sourceTree = "<group>"; };
 		ED7B4FEA8E91B30F5FCFC7F0 /* PhoneCamStream.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PhoneCamStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -41,11 +47,14 @@
 		43695CFFDFFCE30492D8A83D /* PhoneCamStream */ = {
 			isa = PBXGroup;
 			children = (
+				26BA288516C3D88C67E1D10A /* AnchorManager.swift */,
+				89952E75F0F2249382D6BCD5 /* AnchorView.swift */,
 				F5B3DD3B2A5E0633AA5F3FC9 /* CameraManager.swift */,
 				D2E299D82B8E70EE02B0A19A /* CameraPreview.swift */,
 				23EA33B0F920B5E1A0DA3F5B /* ContentView.swift */,
 				F6227F36D4C62511975651E9 /* FrameStreamer.swift */,
 				41FFA8554B028AF465197FCD /* HeadingTracker.swift */,
+				119FC7ED377925A0ADCD0573 /* MoverPeerClient.swift */,
 				5D101BF9AF22DEEA7817D073 /* PhoneCamStreamApp.swift */,
 				87A54CA12AB0AE0290C9A6D2 /* PositionSender.swift */,
 				E65AB07D6FB9EBE59155E448 /* StreamingView.swift */,
@@ -120,11 +129,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6F1AC4B02401287463E12B97 /* AnchorManager.swift in Sources */,
+				BF72FBB07EFB230FD5ABB9C8 /* AnchorView.swift in Sources */,
 				6BCD006EF04A41A0C4396314 /* CameraManager.swift in Sources */,
 				994D9D79A2BE791834A2DD0B /* CameraPreview.swift in Sources */,
 				03E6B30CFF8A4C5D10456CB7 /* ContentView.swift in Sources */,
 				058CC07A8750EFDE6C9220C6 /* FrameStreamer.swift in Sources */,
 				D6013B7B2552C30D986CCA0D /* HeadingTracker.swift in Sources */,
+				2667FC94205E572208418F59 /* MoverPeerClient.swift in Sources */,
 				8E5C017AC800A34462438827 /* PhoneCamStreamApp.swift in Sources */,
 				D9EAA9AE1CBF37DE60257951 /* PositionSender.swift in Sources */,
 				DA16DE95C9C8A68B237EC2E0 /* StreamingView.swift in Sources */,

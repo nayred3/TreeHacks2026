@@ -26,24 +26,143 @@ class AppConfig: ObservableObject {
     var justinPortInt: UInt16 { UInt16(justinPort) ?? 5056 }
 }
 
+// MARK: - App Phase
+
+enum AppPhase {
+    case roleSelection
+    case anchorRunning
+    case cameraSetup
+    case cameraStreaming
+}
+
 // MARK: - Root View
 
 struct ContentView: View {
     @StateObject private var config = AppConfig()
-    @State private var isStreaming = false
+    @State private var phase: AppPhase = .roleSelection
 
     var body: some View {
         NavigationStack {
-            if isStreaming {
-                StreamingView(config: config, onStop: { isStreaming = false })
-            } else {
-                SetupView(config: config, onStart: { isStreaming = true })
+            switch phase {
+            case .roleSelection:
+                RoleSelectionView(config: config,
+                    onAnchor: { phase = .anchorRunning },
+                    onCamera: { phase = .cameraSetup })
+
+            case .anchorRunning:
+                AnchorView(config: config, onStop: { phase = .roleSelection })
+
+            case .cameraSetup:
+                SetupView(config: config, onStart: { phase = .cameraStreaming })
+
+            case .cameraStreaming:
+                StreamingView(config: config, onStop: { phase = .cameraSetup })
             }
         }
     }
 }
 
-// MARK: - Setup View
+// MARK: - Role Selection
+
+struct RoleSelectionView: View {
+    @ObservedObject var config: AppConfig
+    var onAnchor: () -> Void
+    var onCamera: () -> Void
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            Image(systemName: "video.fill")
+                .font(.system(size: 50))
+                .foregroundColor(.blue)
+            Text("PhoneCamStream")
+                .font(.largeTitle.bold())
+            Text("Select this phone's role")
+                .foregroundColor(.secondary)
+
+            Spacer()
+
+            // Anchor button
+            Button(action: onAnchor) {
+                VStack(spacing: 6) {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .font(.title)
+                    Text("Anchor Phone")
+                        .font(.headline)
+                    Text("Place in the center of the room.\nComputes positions for all cameras via UWB.")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(.blue)
+                .foregroundColor(.white)
+                .cornerRadius(16)
+            }
+
+            // Camera button
+            Button(action: onCamera) {
+                VStack(spacing: 6) {
+                    Image(systemName: "camera.fill")
+                        .font(.title)
+                    Text("Camera Phone")
+                        .font(.headline)
+                    Text("Streams video to Logan's Mac.\nPosition tracked via UWB from anchor.")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(.green)
+                .foregroundColor(.white)
+                .cornerRadius(16)
+            }
+
+            Spacer()
+
+            // Network settings (shared)
+            GroupBox("Network") {
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Justin's Mac")
+                            .font(.caption)
+                        Spacer()
+                        TextField("10.35.6.219", text: $config.justinIP)
+                            .font(.caption.monospaced())
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 130)
+                        Text(":")
+                            .font(.caption)
+                        TextField("5056", text: $config.justinPort)
+                            .font(.caption.monospaced())
+                            .frame(width: 50)
+                    }
+                    HStack {
+                        Text("Logan's Mac")
+                            .font(.caption)
+                        Spacer()
+                        TextField("10.35.2.131", text: $config.loganIP)
+                            .font(.caption.monospaced())
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 130)
+                        Text(":")
+                            .font(.caption)
+                        TextField("5050", text: $config.loganPort)
+                            .font(.caption.monospaced())
+                            .frame(width: 50)
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+        .padding()
+    }
+}
+
+// MARK: - Camera Setup View
 
 struct SetupView: View {
     @ObservedObject var config: AppConfig
@@ -51,22 +170,6 @@ struct SetupView: View {
 
     var body: some View {
         Form {
-            Section {
-                VStack(spacing: 4) {
-                    Image(systemName: "video.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.blue)
-                    Text("PhoneCamStream")
-                        .font(.title2.bold())
-                    Text("Stream camera + position to the fusion server")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-            }
-
             Section("Camera Identity") {
                 HStack {
                     Text("Camera ID")
@@ -77,7 +180,7 @@ struct SetupView: View {
                 }
             }
 
-            Section("Position (metres from central phone)") {
+            Section("Fallback Position (if no UWB)") {
                 HStack {
                     Text("X (East +)")
                     Spacer()
@@ -90,42 +193,6 @@ struct SetupView: View {
                     Spacer()
                     TextField("0.0", text: $config.positionY)
                         .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                }
-            }
-
-            Section("Logan's Mac (Video Frames)") {
-                HStack {
-                    Text("IP Address")
-                    Spacer()
-                    TextField("10.35.2.131", text: $config.loganIP)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .autocorrectionDisabled()
-                }
-                HStack {
-                    Text("Port")
-                    Spacer()
-                    TextField("5050", text: $config.loganPort)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                }
-            }
-
-            Section("Justin's Mac (Position Data)") {
-                HStack {
-                    Text("IP Address")
-                    Spacer()
-                    TextField("10.35.6.219", text: $config.justinIP)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .autocorrectionDisabled()
-                }
-                HStack {
-                    Text("Port")
-                    Spacer()
-                    TextField("5056", text: $config.justinPort)
-                        .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                 }
             }
@@ -154,6 +221,6 @@ struct SetupView: View {
                 .foregroundColor(.white)
             }
         }
-        .navigationTitle("Setup")
+        .navigationTitle("Camera Setup")
     }
 }
