@@ -21,7 +21,7 @@ from dataclasses import asdict
 from typing import Optional
 from collections import defaultdict
 
-from models import Position, Agent, Target, Assignment
+from .models import Position, Agent, Target, Assignment
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("AssignmentEngine")

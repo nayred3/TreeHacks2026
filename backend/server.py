@@ -13,13 +13,13 @@ Endpoints:
   WS   /ws             — real-time push of assignments at 10 Hz
 
 Install: pip install fastapi uvicorn websockets
-Run:     uvicorn assignment:app --reload --port 8001
+Run:     uvicorn backend.assignment:app --reload --port 8001
 """
 
 import asyncio
 import logging
 
-from engine import AssignmentEngine
+from .engine import AssignmentEngine
 
 log = logging.getLogger("AssignmentEngine")
 

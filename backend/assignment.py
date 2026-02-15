@@ -11,16 +11,16 @@ This module is the main entry point. Submodules:
   demo     — Demo simulation
 
 Usage:
-  Run standalone:   python assignment.py
-  Run with server:  python assignment.py --serve
-  Import as module: from assignment import AssignmentEngine
+  Run standalone:   python -m backend.assignment
+  Run with server:  python -m backend.assignment --serve
+  Import as module: from backend.assignment import AssignmentEngine
 """
 
 import sys
 
-from engine import AssignmentEngine
-from server import create_app
-from demo import run_demo
+from .engine import AssignmentEngine
+from .server import create_app
+from .demo import run_demo
 
 # Re-export for backward compatibility
 __all__ = ["AssignmentEngine", "create_app", "run_demo"]
@@ -42,6 +42,6 @@ if __name__ == "__main__":
             import uvicorn
             print("\nStarting server on http://localhost:8001")
             print("Endpoints: POST /agents  POST /targets  GET /assignments  WS /ws")
-            uvicorn.run("assignment:app", host="0.0.0.0", port=8001, reload=True)
+            uvicorn.run("backend.assignment:app", host="0.0.0.0", port=8001, reload=True)
         except ImportError:
             print("Install uvicorn + fastapi to run the server: pip install fastapi uvicorn")

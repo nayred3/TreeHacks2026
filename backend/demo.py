@@ -7,7 +7,7 @@ Owns: Simulated Nerf fight scenario for demos.
 
 import json
 
-from engine import AssignmentEngine
+from .engine import AssignmentEngine
 
 
 def run_demo():

@@ -733,49 +733,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right column: Agent 3 & 4 camera views */}
-        <div style={{ display:"flex", flexDirection:"column", gap:8, flex:1, minWidth:160 }}>
-          {agents.slice(2, 4).map(agent => {
-            const color = AGENT_COLORS[agent.id] || "#888";
-            const isHl = hl === agent.id;
-            const prList = result.agentPriorities[agent.id] || [];
-            const primEntry = prList.find(e => e.role === "primary");
-            const secEntry = prList.find(e => e.role === "secondary");
-            return (
-              <div key={agent.id} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
-                <div style={{ background:"#1a2744", border:`1px solid ${C.border}`, borderRadius:8, height:240, display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontSize:11 }}>
-                  {agent.id} Live Camera View
-                </div>
-                <div onClick={() => setHL(h => h === agent.id ? null : agent.id)}
-                  style={{ marginTop:6, padding:12, background:"#0f1629", border:`1px solid ${isHl?color:C.border}`, borderRadius:8, cursor:"pointer" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", gap:16 }}>
-                    <div>
-                      <div style={{ fontSize:11, color:C.text, marginBottom:2 }}>{agent.id}</div>
-                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Position</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>({agent.position.x.toFixed(0)}, {agent.position.y.toFixed(0)})</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Primary</div>
-                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Target T${primEntry.targetId}` : "—"}</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{primEntry ? `Distance: ${primEntry.distance.toFixed(0)} cm` : ""}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Secondary</div>
-                      <div style={{ fontSize:10, color:C.dim, marginBottom:2 }}>Assignment</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Target T${secEntry.targetId}` : "—"}</div>
-                      <div style={{ fontSize:11, color:C.green, fontWeight:600 }}>{secEntry ? `Distance: ${secEntry.distance.toFixed(0)} cm` : ""}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Left column: Agent 1 & 2 camera views */}
-        <div style={{ display:"flex", flexDirection:"column", gap:8, flex:1, minWidth:160 }}>
-          {agents.slice(0, 2).map(agent => {
+        {/* Agent panels: top row Alice & Bob, bottom row Charlie & Diana */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gridTemplateRows:"1fr 1fr", gap:8, flex:1, minWidth:320 }}>
+          {agents.map(agent => {
             const color = AGENT_COLORS[agent.id] || "#888";
             const isHl = hl === agent.id;
             const prList = result.agentPriorities[agent.id] || [];
