@@ -342,7 +342,7 @@ export default function App() {
       {/* ── Header ── */}
       <div style={{ flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
         <div>
-          <div style={{ fontSize:15, fontWeight:700, letterSpacing:"0.15em", color:C.teal }}>◈ PRIORITY ASSIGNMENT ENGINE</div>
+          <div style={{ fontSize:15, fontWeight:700, letterSpacing:"0.15em", color:C.teal }}>PRIORITY ASSIGNMENT ENGINE</div>
           <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.1em", marginTop:2 }}>DISTANCE-BASED PRIORITY</div>
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
@@ -440,8 +440,8 @@ export default function App() {
       <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", maxWidth:"100%", overflow:"auto" }}>
       <div style={{ flex:1, minHeight:0, display:"flex", gap:0, justifyContent:"center", alignItems:"stretch", minWidth:"min-content" }}>
 
-        {/* Left column: Agent 1 & 2 camera views */}
-        <div style={{ display:"flex", flexDirection:"column", gap:8, width:380, minWidth:200, flexShrink:1 }}>
+        {/* Left column: Agent 1 & 2 camera views - flex:1 gives (screen - center) / 2 */}
+        <div style={{ display:"flex", flexDirection:"column", gap:8, flex:1, minWidth:160 }}>
           {agents.slice(0, 2).map(agent => {
             const color = AGENT_COLORS[agent.id] || "#888";
             const isHl = hl === agent.id;
@@ -760,8 +760,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right column: Agent 3 & 4 camera views */}
-        <div style={{ display:"flex", flexDirection:"column", gap:8, width:380, minWidth:200, flexShrink:1 }}>
+        {/* Right column: Agent 3 & 4 camera views - flex:1 gives (screen - center) / 2 */}
+        <div style={{ display:"flex", flexDirection:"column", gap:8, flex:1, minWidth:160 }}>
           {agents.slice(2, 4).map(agent => {
             const color = AGENT_COLORS[agent.id] || "#888";
             const isHl = hl === agent.id;
