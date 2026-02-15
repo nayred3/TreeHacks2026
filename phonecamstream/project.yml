@@ -1,0 +1,29 @@
+name: PhoneCamStream
+
+options:
+  bundleIdPrefix: com.treehacks
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+
+targets:
+  PhoneCamStream:
+    type: application
+    platform: iOS
+    sources:
+      - path: PhoneCamStream
+        excludes:
+          - "*.plist"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.treehacks.PhoneCamStream
+        TARGETED_DEVICE_FAMILY: "1"
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_STYLE: Automatic
+        INFOPLIST_FILE: PhoneCamStream/Info.plist
+        GENERATE_INFOPLIST_FILE: NO

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Camera Feed &amp; Position Estimator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>Camera Feed &amp; Position Estimator</h1>
+      <div class="cam-tabs" id="cam-tabs"></div>
+      <span id="status"></span>
+    </header>
+
+    <div class="timeline">
+      <button id="step-prev" type="button" title="Previous step (&#8592;)">&#9664;</button>
+      <input id="time-slider" type="range" min="0" max="0" value="0" step="1" aria-label="Time step">
+      <button id="step-next" type="button" title="Next step (&#8594;)">&#9654;</button>
+      <button id="play-pause" type="button" title="Play / Pause (Space)">Play</button>
+      <span id="time-label">t = 0.0 s</span>
+      <span id="frame-label"></span>
+    </div>
+
+    <main>
+      <!-- Left: camera feed image -->
+      <section class="panel feed-panel">
+        <h2 id="feed-title">Camera Feed</h2>
+        <div id="feed-container">
+          <canvas id="feed-canvas" width="640" height="480"></canvas>
+          <div id="feed-info" class="info-bar"></div>
+        </div>
+        <div id="detection-list" class="detection-list"></div>
+      </section>
+
+      <!-- Right: overhead map -->
+      <section class="panel map-panel">
+        <h2>Overhead Map</h2>
+        <div id="map-container">
+          <svg id="map" viewBox="0 0 600 500" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto">
+                <polygon points="0 0, 6 2, 0 4" fill="rgba(99,102,241,0.6)"/>
+              </marker>
+            </defs>
+            <g id="grid-layer"></g>
+            <g id="walls-layer"></g>
+            <g id="fov-layer"></g>
+            <g id="estimation-lines-layer"></g>
+            <g id="tracks-layer"></g>
+            <g id="cameras-layer"></g>
+            <g id="labels-layer"></g>
+          </svg>
+          <div id="map-tooltip" class="tooltip" aria-hidden="true"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer id="legend">
+      <div class="legend-cols">
+        <div class="legend-group">
+          <h3>Camera Feed</h3>
+          <div class="legend-row"><span class="swatch" style="border:2px solid #22c55e;background:rgba(34,197,94,0.15)"></span> Person bbox</div>
+          <div class="legend-row"><span class="swatch" style="background:#22c55e"></span> Distance label</div>
+          <div class="legend-row"><span class="swatch" style="border:1px solid rgba(99,102,241,0.4);background:rgba(99,102,241,0.08)"></span> FOV bounds</div>
+        </div>
+        <div class="legend-group">
+          <h3>Overhead Map</h3>
+          <div class="legend-row"><span class="dot actual"></span> Actual position</div>
+          <div class="legend-row"><span class="dot estimated"></span> Estimated position</div>
+          <div class="legend-row"><span class="line-sample error"></span> Estimation error</div>
+          <div class="legend-row"><span class="dot cam"></span> Static camera</div>
+          <div class="legend-row"><span class="dot mobile-cam"></span> Mobile camera</div>
+          <div class="legend-row"><span class="line-sample mobile-trail"></span> Mobile trail</div>
+          <div class="legend-row"><span class="line-sample wall"></span> Wall</div>
+        </div>
+        <div class="legend-group">
+          <h3>Shortcuts</h3>
+          <div class="kbd-hint">
+            <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> &nbsp;Select camera<br>
+            <kbd>&#8592;</kbd> <kbd>&#8594;</kbd> &nbsp;Prev / next step<br>
+            <kbd>Space</kbd> &nbsp;Play / pause
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

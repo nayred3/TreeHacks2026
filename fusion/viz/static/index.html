@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fusion Map — Cameras, Feeds &amp; Tracks</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>Fusion map</h1>
+      <div class="cam-tabs" id="cam-tabs"></div>
+      <span id="status"></span>
+    </header>
+
+    <div class="timeline">
+      <button id="step-prev" type="button" title="Previous step (&#8592;)">&#9664;</button>
+      <input id="time-slider" type="range" min="0" max="0" value="0" step="1" aria-label="Time step">
+      <button id="step-next" type="button" title="Next step (&#8594;)">&#9654;</button>
+      <button id="play-pause" type="button" title="Play / Pause (Space)">Play</button>
+      <span id="time-label">t = 0.0 s</span>
+      <span id="frame-label"></span>
+    </div>
+
+    <main>
+      <!-- Left: camera feed -->
+      <section class="panel feed-panel">
+        <h2 id="feed-title">Camera Feed</h2>
+        <div id="feed-container">
+          <canvas id="feed-canvas" width="640" height="480"></canvas>
+          <div id="feed-info" class="info-bar"></div>
+        </div>
+        <div id="detection-list" class="detection-list"></div>
+      </section>
+
+      <!-- Right: overhead map -->
+      <section class="panel map-panel">
+        <h2>Overhead Map <button id="heading-toggle" class="heading-btn active" title="Toggle heading-up / north-up (R)">&#x1F9ED; Heading Up</button></h2>
+        <div id="map-container">
+          <svg id="map" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="1" dy="1" stdDeviation="2" flood-opacity="0.25"/>
+              </filter>
+            </defs>
+            <g id="grid-layer"></g>
+            <g id="walls-layer"></g>
+            <g id="vision-cones-layer"></g>
+            <g id="estimation-lines-layer"></g>
+            <g id="tracks-layer"></g>
+            <g id="cameras-layer"></g>
+            <g id="labels-layer"></g>
+          </svg>
+          <div id="tooltip" class="tooltip" aria-hidden="true"></div>
+          <!-- Mini-map: full-room overview -->
+          <div id="minimap-wrap">
+            <svg id="minimap" viewBox="0 0 240 200" xmlns="http://www.w3.org/2000/svg">
+              <g id="mm-grid"></g>
+              <g id="mm-walls"></g>
+              <g id="mm-fov"></g>
+              <g id="mm-tracks"></g>
+              <g id="mm-cameras"></g>
+              <g id="mm-viewport"></g>
+            </svg>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer id="legend">
+      <div class="legend-cols">
+        <div class="legend-group">
+          <h3>People (staleness)</h3>
+          <div class="legend-row"><span class="dot recent"></span> Just seen (&lt; 0.5 s)</div>
+          <div class="legend-row"><span class="dot older"></span> A moment ago (0.5 &ndash; 1.5 s)</div>
+          <div class="legend-row"><span class="dot stale"></span> Stale (&gt; 1.5 s)</div>
+          <div class="legend-row"><span class="dot real"></span> Real position (occluded)</div>
+        </div>
+        <div class="legend-group">
+          <h3>Estimation</h3>
+          <div class="legend-row"><span class="dot estimated"></span> Estimated from bbox</div>
+          <div class="legend-row"><span class="line-sample error-good"></span> Error &lt; 0.5 m</div>
+          <div class="legend-row"><span class="line-sample error-ok"></span> Error 0.5 &ndash; 1.5 m</div>
+          <div class="legend-row"><span class="line-sample error-bad"></span> Error &gt; 1.5 m</div>
+        </div>
+        <div class="legend-group">
+          <h3>Cameras</h3>
+          <div class="legend-row"><span class="dot camera"></span> Static camera</div>
+          <div class="legend-row"><span class="dot mobile-cam"></span> Mobile camera</div>
+          <div class="legend-row"><span class="line-sample mobile-trail"></span> Mobile trail</div>
+          <div class="legend-row"><span class="cone-sample"></span> FOV (60&deg;)</div>
+          <div class="legend-row"><span class="line-sample wall"></span> Wall</div>
+        </div>
+        <div class="legend-group">
+          <h3>Shortcuts</h3>
+          <div class="kbd-hint">
+            <kbd>1</kbd>&ndash;<kbd>4</kbd> Select camera<br>
+            <kbd>&#8592;</kbd> <kbd>&#8594;</kbd> Prev / next step<br>
+            <kbd>Space</kbd> Play / pause<br>
+            <kbd>R</kbd> Toggle heading-up / north-up
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
