@@ -441,7 +441,7 @@ export default function App() {
       <div style={{ display:"flex", gap:0, justifyContent:"center", alignItems:"stretch", minWidth:"min-content" }}>
 
         {/* Left column: Agent 1 & 2 camera views */}
-        <div style={{ display:"flex", flexDirection:"column", gap:8, width:200, minWidth:160, flexShrink:1 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:8, width:300, minWidth:200, flexShrink:1 }}>
           {agents.slice(0, 2).map(agent => {
             const color = AGENT_COLORS[agent.id] || "#888";
             const isHl = hl === agent.id;
@@ -470,8 +470,9 @@ export default function App() {
           })}
         </div>
 
-        {/* Center column: Live map + Recap (reduced) */}
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12, flexShrink:0, transform:"scale(0.78)", transformOrigin:"top center" }}>
+        {/* Center column: Live map + Recap (reduced) - wrapper width matches scaled visual to avoid gaps */}
+        <div style={{ width: Math.round((WW + 24) * 0.78), flexShrink:0, overflow:"hidden" }}>
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12, transform:"scale(0.78)", transformOrigin:"top left", width: WW + 24 }}>
           {/* Live map */}
           <div>
             <canvas ref={canvasRef} onClick={onCanvasClick}
@@ -756,10 +757,11 @@ export default function App() {
             </div>
           )}
           </div>
+          </div>
         </div>
 
         {/* Right column: Agent 3 & 4 camera views */}
-        <div style={{ display:"flex", flexDirection:"column", gap:8, width:200, minWidth:160, flexShrink:1 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:8, width:300, minWidth:200, flexShrink:1 }}>
           {agents.slice(2, 4).map(agent => {
             const color = AGENT_COLORS[agent.id] || "#888";
             const isHl = hl === agent.id;
